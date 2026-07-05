@@ -1,0 +1,283 @@
+// Pixel Office — Portfolio Management module data layer
+// Owner: database-engineer. Data layer ONLY (no API/UI/auth code here).
+//
+// Design authority: the "Locked architecture decisions" from the user OVERRIDE
+// pixel-office/docs/portfolio-architecture.md where they differ:
+//   - Auth = Clerk (external identity). User stores NO credentials, only a
+//     unique clerkUserId + minimal profile. (doc said Auth.js — overridden)
+//   - DB = Neon Postgres: pooled DATABASE_URL for the app, unpooled DIRECT_URL
+//     for migrations (Prisma requires a direct, non-pgbouncer connection to
+//     run migrate/introspect).
+//
+// Data-integrity contract:
+//   - Transaction is the SOURCE OF TRUTH. Holding is a DERIVED CACHE, recomputed
+//     from the transaction log inside the same DB transaction as each write.
+//   - Every monetary/quantity field is Decimal with explicit precision. NEVER Float.
+//   - Transaction.fxRateUsdThb is an IMMUTABLE snapshot — historical valuations
+//     always use the stored rate, never today's rate.
+//   - Tenant isolation runs through Portfolio.userId: every portfolio-scoped row
+//     (Transaction, Holding, DcaMilestone) is reachable to a userId via portfolio.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled (Neon pgBouncer) — used by the app at runtime
+  directUrl = env("DIRECT_URL") // unpooled — used by prisma migrate / introspect only
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AssetType {
+  EQUITY
+  ETF
+  CRYPTO
+}
+
+enum TransactionType {
+  BUY
+  SELL
+  DIVIDEND
+  FEE
+}
+
+// Phase-1 engine uses AVERAGE_COST. The other methods exist so the recompute
+// strategy can switch per-portfolio later WITHOUT a schema migration — the
+// transaction log already holds everything FIFO/LIFO/specific-lot would need.
+enum CostBasisMethod {
+  AVERAGE_COST
+  FIFO
+  LIFO
+  SPECIFIC_LOT
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity (keyed by Clerk — no passwords stored here)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id          String   @id @default(cuid())
+  clerkUserId String   @unique // external identity from Clerk; the tenant key
+  email       String   @unique
+  displayName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  portfolios Portfolio[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Portfolio (tenant root for all portfolio-scoped rows)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Portfolio {
+  id              String          @id @default(cuid())
+  userId          String
+  name            String
+  baseCurrency    String          @default("THB")
+  costBasisMethod CostBasisMethod @default(AVERAGE_COST)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+  holdings       Holding[]
+  milestones     DcaMilestone[]
+  valueSnapshots PortfolioValueSnapshot[]
+
+  // Tenant isolation: list "my portfolios" is a single indexed lookup by userId.
+  @@index([userId])
+  @@map("portfolios")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Asset — shared reference data (no user scoping: holds no private data)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Asset {
+  id        String    @id @default(cuid())
+  symbol    String // "VOO", "BTC"
+  name      String
+  assetType AssetType
+  currency  String    @default("USD") // native trading/quote currency
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  transactions   Transaction[]
+  holdings       Holding[]
+  priceSnapshots PriceSnapshot[]
+
+  // Same symbol can legitimately exist across types (e.g. a ticker vs a token),
+  // so identity is (symbol, assetType), not symbol alone.
+  @@unique([symbol, assetType])
+  @@map("assets")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Transaction — SOURCE OF TRUTH (append-mostly ledger)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Transaction {
+  id          String          @id @default(cuid())
+  portfolioId String
+  assetId     String
+  type        TransactionType
+
+  // quantity: 0 is valid for DIVIDEND/FEE cash events. Decimal(30,10) covers
+  // crypto sub-satoshi lots without float drift.
+  quantity Decimal @db.Decimal(30, 10)
+
+  // executedPrice: per-unit price in `currency`. Decimal(20,8) covers both cheap
+  // crypto (8 dp) and high-priced equities.
+  executedPrice Decimal @db.Decimal(20, 8)
+
+  currency String // native currency of executedPrice/fees (e.g. "USD")
+
+  // IMMUTABLE FX snapshot (USD->THB) captured at execution. Historical THB cost
+  // basis is computed from THIS rate forever — never recomputed with a live rate.
+  fxRateUsdThb Decimal @db.Decimal(18, 8)
+
+  // fees: same currency as `currency`. Nullable = "not recorded"; default 0 lets
+  // callers omit it and still get clean math.
+  fees Decimal? @db.Decimal(20, 8)
+
+  executedAt DateTime // user-supplied trade time (the economic event time)
+
+  // Future auto-import hooks (Phase 2). Nullable now — manual entry leaves them
+  // null. (source, externalId) unique prevents double-importing the same broker
+  // fill; NULLs are exempt from the constraint in Postgres, so manual rows are fine.
+  source     String? // e.g. "manual" | "mexc" | "finnhub-import"
+  externalId String? // provider's fill id, for idempotent import dedupe
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  asset     Asset     @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  // Ledger read paths: per-asset replay for recompute, and time-ordered history.
+  // Import idempotency is PER-PORTFOLIO (tenant-scoped). A global (source, externalId)
+  // let one tenant squat a provider fill-id and block/probe another tenant's import
+  // (cross-tenant DoS + existence oracle — CR-003 F-01). Scoping by portfolioId keeps
+  // dedupe within the tenant. NULLs stay exempt in Postgres, so manual rows are fine.
+  @@unique([portfolioId, source, externalId]) // per-portfolio import idempotency (partial: NULLs allowed repeatedly)
+  @@index([portfolioId, assetId])
+  @@index([portfolioId, executedAt])
+  @@index([assetId])
+  @@map("transactions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Holding — DERIVED CACHE (recomputed from Transactions, never hand-edited)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Holding {
+  id          String @id @default(cuid())
+  portfolioId String
+  assetId     String
+
+  // current net position; Decimal(30,10) matches Transaction.quantity.
+  quantity Decimal @db.Decimal(30, 10)
+
+  // average cost per unit, in the asset's native currency (avgCostNative) and in
+  // THB (avgCostThb, derived from the per-transaction fxRateUsdThb snapshots).
+  avgCostNative Decimal @db.Decimal(20, 8)
+  avgCostThb    Decimal @db.Decimal(20, 8)
+
+  updatedAt DateTime @updatedAt
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  asset     Asset     @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  // One cached row per (portfolio, asset) — the derived-cache identity.
+  @@unique([portfolioId, assetId])
+  @@index([portfolioId])
+  @@index([assetId])
+  @@map("holdings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PriceSnapshot — cached external prices (rate-limit shield + fallback)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PriceSnapshot {
+  id        String   @id @default(cuid())
+  assetId   String
+  price     Decimal  @db.Decimal(20, 8)
+  currency  String // currency of `price` (usually "USD")
+  source    String // "finnhub" | "coingecko" | "cache" | "mock"
+  fetchedAt DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  // Latest-price lookup per asset = ORDER BY fetchedAt DESC on this composite index.
+  @@index([assetId, fetchedAt])
+  @@map("price_snapshots")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DcaMilestone — progress checkpoints toward the ฿1,000,000 DCA goal
+// ─────────────────────────────────────────────────────────────────────────────
+
+model DcaMilestone {
+  id          String    @id @default(cuid())
+  portfolioId String
+  targetThb   Decimal   @db.Decimal(20, 2) // e.g. 1000000.00
+  currentThb  Decimal   @default(0) @db.Decimal(20, 2) // last-computed progress
+  achievedAt  DateTime? // set when currentThb first crosses targetThb; null = not yet
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@index([portfolioId])
+  @@map("dca_milestones")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PortfolioValueSnapshot — time-series of total portfolio value (CR-004)
+// Feeds the historical performance chart (TradingView Lightweight Charts:
+// series is { time, value }). One snapshot per (portfolio, capturedAt) instant.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PortfolioValueSnapshot {
+  id          String @id @default(cuid())
+  portfolioId String
+
+  // The point in time this valuation REPRESENTS (the economic instant), distinct
+  // from createdAt (when the row was written). Charts plot on capturedAt.
+  capturedAt DateTime
+
+  // All money = Decimal, never Float. Decimal(20,2): 18 integer digits handle any
+  // realistic THB/USD portfolio total; 2 dp is the display/accounting granularity
+  // for aggregated value (individual lots keep their finer precision upstream in
+  // Transaction/Holding — this table stores already-rounded portfolio totals).
+  totalValueThb    Decimal @db.Decimal(20, 2)
+  totalValueUsd    Decimal @db.Decimal(20, 2)
+  totalCostThb     Decimal @db.Decimal(20, 2)
+  unrealizedPnlThb Decimal @db.Decimal(20, 2) // signed: totalValueThb - totalCostThb
+
+  // Honesty marker matching PriceSnapshot.source semantics: how trustworthy the
+  // valuation is. "live" = all prices fresh; "partial" = some fell back to cache;
+  // "mock" = seeded/demo data. Kept in the row so the chart can flag stale points.
+  source String // "live" | "partial" | "mock"
+
+  createdAt DateTime @default(now())
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  // Hot path: range-scan a portfolio's series ordered by time (chart load /
+  // "last N days"). The @@unique([portfolioId, capturedAt]) below already creates
+  // a btree unique index on exactly these columns in this order, which the planner
+  // uses for both the portfolioId filter AND the capturedAt range/ORDER BY. A
+  // separate @@index([portfolioId, capturedAt]) would be an exact duplicate, so it
+  // is intentionally omitted (no redundant index to write on every insert).
+  @@unique([portfolioId, capturedAt]) // one snapshot per portfolio per instant — idempotent daily capture, no dupes on retry
+  @@map("portfolio_value_snapshots")
+}
