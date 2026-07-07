@@ -23,7 +23,7 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
-  /** 401 in dev == Clerk not configured; surface a friendlier hint. */
+  /** 401 == no valid session; callers surface a "please sign in" hint. */
   get isUnauthorized() {
     return this.status === 401;
   }
@@ -57,7 +57,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     } catch {
       /* non-JSON error body — keep the generic message */
     }
-    if (res.status === 401) message = "ต้องเข้าสู่ระบบก่อน (Clerk ยังไม่ตั้งค่าใน dev)";
+    if (res.status === 401) message = "กรุณาเข้าสู่ระบบก่อนใช้งาน (Please sign in to continue.)";
     throw new ApiError(res.status, message, fieldErrors);
   }
 

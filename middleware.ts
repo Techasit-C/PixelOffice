@@ -6,15 +6,31 @@
 // entirely and pass through, so the app still runs and builds. Portfolio routes
 // then return 401 (auth() throws -> Unauthorized), which is the correct behavior.
 import { NextResponse } from "next/server";
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 const hasClerkKeys =
   !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
   !!process.env.CLERK_SECRET_KEY;
 
+// PAGE routes that require a signed-in user. Signed-out visitors to these get
+// redirected to the sign-in page (auth.protect() on a document request).
+//
+// Deliberately EXCLUDES /api/** : API handlers self-enforce via requireUser()
+// and must answer JSON 401, never an HTML sign-in redirect. /sign-in and
+// /sign-up are also excluded so the auth surface itself stays reachable.
+const isProtectedPage = createRouteMatcher(["/portfolio(.*)"]);
+
 const passthrough = () => NextResponse.next();
 
-export default hasClerkKeys ? clerkMiddleware() : passthrough;
+// Callback form: populate auth context for every matched route (so API handlers'
+// auth() works), but only hard-redirect the protected PAGE routes.
+const withClerk = clerkMiddleware(async (auth, req) => {
+  if (isProtectedPage(req)) {
+    await auth.protect();
+  }
+});
+
+export default hasClerkKeys ? withClerk : passthrough;
 
 export const config = {
   matcher: [

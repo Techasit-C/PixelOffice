@@ -10,6 +10,7 @@ import {
   useMilestones,
 } from "@/lib/portfolio-client/hooks";
 import { Panel, SourceBadge, LoadingBlock, EmptyBlock, ErrorBlock } from "./ui";
+import { HeaderAuth } from "@/components/auth/HeaderAuth";
 import { PortfolioSelector } from "./PortfolioSelector";
 import { PortfolioSummary } from "./PortfolioSummary";
 import { HoldingsTable } from "./HoldingsTable";
@@ -100,6 +101,7 @@ export default function PortfolioPageClient() {
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
+          <HeaderAuth />
         </div>
       </div>
     ),
