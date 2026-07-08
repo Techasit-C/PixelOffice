@@ -8,7 +8,7 @@ change is executed without approval.**
 | ID | Title | Priority | Status | Approval |
 |---|---|---|---|---|
 | CR-GOV-01 | Canonicalize governance docs location to `.claude/` | Medium | OPEN | PENDING |
-| CR-REPO-01 | Version-control scope for the parent `Ai Agent/` folder | Medium | OPEN | PENDING |
+| CR-REPO-01 | Version-control scope for the parent `Ai Agent/` folder | Medium | **DONE / CLOSED** | **APPROVED-EXECUTED** |
 
 ---
 
@@ -28,25 +28,18 @@ change is executed without approval.**
 - **Affected components:** All governance `.md` — `PROJECT_STATUS.md`, `ROADMAP.md`,
   `RELEASE_NOTES.md`, `CHANGE_REQUESTS.md`, `RISK_REGISTER.md` (and any future
   `FEATURE_REGISTRY.md` / registries) in both `.claude/` and `pixel-office/`.
+- **Note (2026-07-08):** Governance is now genuinely version-controlled. CR-REPO-01
+  unified the repo at `Ai Agent/`, so this doc's canonical `.claude/` location is now
+  tracked by git. The remaining OPEN work is only the two-tier sync discipline, not
+  the versioning gap.
 
 ## CR-REPO-01 — Version-control scope for the parent `Ai Agent/` folder
 
-- **Status:** OPEN — needs user decision (devops can execute once decided)
-- **Approval:** PENDING
-- **Priority:** Medium
-- **Reason:** Only `pixel-office/` is a git repository. The parent `Ai Agent/` folder
-  — including this `.claude/` governance directory, all agent definitions in
-  `.claude/agents/`, and `portfolio_stress_test/` — is **not tracked by git**, so
-  governance docs and agent prompts are currently **unversioned**.
-- **Impact:** No history, diff, or rollback for governance documents or agent system
-  prompts; accidental edits/deletions are unrecoverable.
-- **Risks:** Loss of governance/agent history; no audit trail for prompt changes;
-  inability to revert a bad edit.
-- **Affected components:** `.claude/` (governance + `agents/`), `portfolio_stress_test/`,
-  and the parent `Ai Agent/` root.
-- **Options:**
-  - **(i)** `git init` a repository at `Ai Agent/` (parent), tracking `.claude/` and
-    `portfolio_stress_test/` while keeping the existing `pixel-office/` repo (nested or
-    as a submodule — devops to determine).
-  - **(ii)** Keep governance intentionally local/unversioned (accept the risk
-    explicitly).
+- **Status:** DONE / CLOSED (executed 2026-07-08)
+- **Approval:** APPROVED-EXECUTED
+- **Resolution (2026-07-08):** Unified repo at `Ai Agent/` via Option B (built-in git
+  subtree merge). `pixel-office` history merged under the `pixel-office/` subpath;
+  merge commit **`44b3857`** (two parents `e9f5084` + `db462a6`). `.claude/`
+  (governance + agents) is now tracked. Nested `pixel-office/.git` retired to
+  `pixel-office/.git.bak` as a full-history archive. **No files deleted, no push,
+  no deploy.** See PROJECT_STATUS.md "Repository" for details and follow-up notes.
