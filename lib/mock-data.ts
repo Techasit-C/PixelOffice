@@ -1,4 +1,3 @@
-import type { Agent } from "@/types/agent";
 import type { Quote } from "@/types/market";
 
 export interface AffiliateData {
@@ -106,43 +105,6 @@ export function makeTradingData(): TradingData {
     magicNumber: "22222",
     updatedAt: "11:16",
   };
-}
-
-export function makeAgents(): Agent[] {
-  return [
-    {
-      id: "housekeeper",
-      name: "Housekeeper",
-      role: "Maintenance",
-      status: "active",
-      latestAnalysis: "ทำงานอยู่ · 7 นาทีที่แล้ว",
-      accentColor: "#22c55e",
-    },
-    {
-      id: "jing",
-      name: "Jing (Dev)",
-      role: "Developer",
-      status: "idle",
-      latestAnalysis: "ว่าง · ล่าสุด 4 ชม.ที่แล้ว",
-      accentColor: "#64748b",
-    },
-    {
-      id: "policy-refresh",
-      name: "Policy Refresh",
-      role: "Compliance",
-      status: "idle",
-      latestAnalysis: "ว่าง · ล่าสุด 7 ชม.ที่แล้ว",
-      accentColor: "#64748b",
-    },
-    {
-      id: "joe",
-      name: "Joe (Dev)",
-      role: "Developer",
-      status: "idle",
-      latestAnalysis: "ว่าง · ล่าสุด 12 ชม.ที่แล้ว",
-      accentColor: "#64748b",
-    },
-  ];
 }
 
 export function makeCryptoPrices(): Quote[] {

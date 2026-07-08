@@ -7,10 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing pending. Public/multi-user launch is tracked as a condition on the 2026-07-07
+release (swap Clerk TEST keys → live production instance) rather than as a code change.
+
+## [2026-07-07] — First production deploy · **Production Ready (Conditional)**
+
+First production deployment of pixel-office, executed and verified end-to-end
+(devops-engineer + qa-engineer). Live at https://pixel-office-mauve.vercel.app
+(Vercel project `REALTITLE`, Pro plan, Neon `us-east-1`). Two change requests shipped
+together. Full witnessed record: `docs/deployment.md` §8; release note
+`docs/release-notes/production-2026-07-07.md`.
+
 ### Added
 
-- **CR-DEPLOY-01 — Daily portfolio-valuation snapshot cron** reached
-  **RC2 (2026-07-07)**, signed off for **code-readiness**.
+- **CR-DEPLOY-01 — Daily portfolio-valuation snapshot cron** — **deployed & verified in
+  production** (was RC2 code-readiness on the same date).
   - `POST /api/cron/snapshot` (`app/api/cron/snapshot/route.ts`, `runtime = "nodejs"`):
     a system job that loads every portfolio, skips empty ones
     (`_count.holdings === 0`), and captures one idempotent snapshot per portfolio
@@ -24,21 +35,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     summary with secrets redacted from error strings.
   - `vercel.json` cron wiring: schedule `0 22 * * *` (22:00 UTC, after US close) on
     `/api/cron/snapshot`, plus `functions."app/api/cron/snapshot/route.ts".maxDuration = 60`.
+  - **In production:** Vercel Cron Jobs shows `/api/cron/snapshot @ 0 22 * * *`;
+    unauthenticated `POST` → **401 `{"error":"Unauthorized"}`**; authorized `POST` →
+    **200** `{processed:2, succeeded:0, failed:0, skipped:2}` (both portfolios empty,
+    skipped by design — healthy, no failures).
 
-### Verification (RC2, 2026-07-07)
+- **CR-AUTH-01 — Clerk client sign-in surface + `/portfolio` route protection** — raised
+  mid-deploy when the smoke test found the app had server-side Clerk auth but **no way for
+  a user to sign in** (no sign-in UI, no page-level protection). Uses Clerk 7.x
+  (`<Show when="signed-in|signed-out">`, not the older `<SignedIn>`/`<SignedOut>`).
+  - Created `app/sign-in/[[...sign-in]]/page.tsx`, `app/sign-up/[[...sign-up]]/page.tsx`
+    (embedded Clerk auth widgets; build as dynamic routes), and
+    `components/auth/HeaderAuth.tsx` (sign-in link when signed out, `<UserButton>` when
+    signed in; gated on the inlined publishable key so keyless dev renders nothing).
+  - `middleware.ts`: `createRouteMatcher(["/portfolio(.*)"])` + `auth.protect()` redirects
+    signed-out visitors of `/portfolio` to sign-in. **`/api/**` is excluded** so API
+    handlers keep answering JSON **401** (not an HTML redirect).
+  - `app/layout.tsx`: `<ClerkProvider>` mounted only when Clerk keys are present
+    (keyless-boot invariant preserved).
+  - `components/portfolio/PortfolioPageClient.tsx` mounts `HeaderAuth`;
+    `lib/portfolio-client/api.ts` replaces the stale "Clerk ยังไม่ตั้งค่าใน dev" 401 string
+    with a real "please sign in" message.
+  - Server-side `requireUser()` and the existing 401/404 tenancy behavior are unchanged.
 
-- `npm run lint` — exit **0** (PASS).
-- `npm run test` (`vitest run`) — exit **0** (PASS): 8 test files, 69 tests;
-  `tests/cron-snapshot.test.ts` 13/13 (fail-closed auth + batch aggregation).
-- `npm run build` (`next build`, keyless) — exit **0** (PASS): 12 pages;
-  `/api/cron/snapshot` present in the route manifest as a dynamic function.
-- `npm run check:env -- --prod` — exit **1**, EXPECTED in a keyless local environment
-  (prod-required vars intentionally unset). This is a deploy-time gate that must pass
-  (exit 0) only against real Vercel Production values — not a code defect.
+### Changed
 
-### Not yet released
+- `docs/portfolio-architecture.md`: the original **Auth.js v5** auth decision (§3.2) is
+  marked **SUPERSEDED by Clerk** with a dated note referencing CR-AUTH-01. The historical
+  Auth.js text/rationale is preserved for context; the app ships Clerk.
 
-- RC2 is **code-readiness only**. Production deploy still requires, at deploy time:
-  real prod env in Vercel, `check:env -- --prod` = 0 against those values,
-  `prisma migrate deploy` on `DIRECT_URL`, and the `docs/deployment.md` §4 smoke checks
-  plus one manual cron "Run". See `docs/release-notes/RC2.md` and `docs/deployment.md` §7.
+### Verification (2026-07-07)
+
+- **Code gates (keyless local, qa-engineer):** `npm run lint` = **0**; `npx tsc --noEmit`
+  = **0**; `npm run test` (`vitest run`) = **0** (69 tests / 8 files;
+  `tests/cron-snapshot.test.ts` 13/13); keyless `npm run build` = **0** (sign-in/sign-up
+  emit as dynamic routes; `/portfolio` builds). `npm run check:env -- --prod` = **1** is
+  the EXPECTED keyless result (prod-required vars intentionally unset) — a deploy-time gate,
+  not a defect.
+- **Deploy-time (against real prod values):** `npm run check:env -- --prod` = **0**;
+  `prisma migrate deploy` on `DIRECT_URL` = **0** (`0_init` + `1_perf_and_tenant_uniqueness`,
+  8 tables); `prisma migrate status` = "Database schema is up to date!".
+- **Production smoke (live URL):** app loads; `GET /api/company-status` → 200
+  (`holdingsSource:"mock"`); signed-out `GET /api/portfolios` → 401; signed-in → 200;
+  `POST /api/portfolios` → 201, then `POST /api/portfolios/{id}/performance` → 201
+  `{ok:true, capturedAt:"2026-07-07T00:00:00.000Z"}`.
+
+### Conditions (pre-public-launch gate)
+
+- **Clerk runs on TEST/Development keys** (`pk_test_`/`sk_test_`, "Option B interim"). Fine
+  for controlled/personal use; **NOT production-grade for a public/multi-user launch**. That
+  requires a custom domain + a verified Clerk **Production** instance (`pk_live_`/`sk_live_`).
+- Open-monitor: **R3** sequential batch scaling; **R6** portfolios empty (snapshots become
+  meaningful once holdings are added).

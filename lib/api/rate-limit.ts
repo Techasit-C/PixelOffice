@@ -80,8 +80,9 @@ class NoopRateLimiter implements RateLimiter {
 }
 
 // Bucket = a category of request with its own budget. Writes are cheaper to abuse
-// destructively; provider-hitting reads must be capped to protect upstream quotas.
-export type RateLimitBucket = "write" | "providerRead";
+// destructively; provider-hitting reads must be capped to protect upstream quotas;
+// agentsRead caps the (cheap, cached) /api/agents roster read per user.
+export type RateLimitBucket = "write" | "providerRead" | "agentsRead";
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -104,7 +105,9 @@ function limiterFor(bucket: RateLimitBucket): RateLimiter {
   const limit =
     bucket === "write"
       ? envInt("RATE_LIMIT_WRITE_MAX", 30)
-      : envInt("RATE_LIMIT_READ_MAX", 60);
+      : bucket === "agentsRead"
+        ? envInt("RATE_LIMIT_AGENTS_MAX", 30)
+        : envInt("RATE_LIMIT_READ_MAX", 60);
 
   const created: RateLimiter = DISABLED
     ? new NoopRateLimiter()

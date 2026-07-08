@@ -1,6 +1,9 @@
 # Production Deployment — pixel-office
 
-Owner: devops-engineer. **This document is preparation only — no deploy has been run.**
+Owner: devops-engineer. **First production deploy completed 2026-07-07** — see
+[§8 "Production go-live — 2026-07-07"](#8-production-go-live--2026-07-07) for the witnessed
+record. Sections 1–5 remain the standing deploy/rollback procedure; §8 documents the run that
+was actually executed against live Vercel + Neon + Clerk.
 
 Target stack: **Vercel** (Next.js 15 App Router + Route Handlers) · **Neon PostgreSQL**
 (Prisma v6) · **Clerk** auth · market data via **Finnhub / CoinGecko / open.er-api FX**.
@@ -153,6 +156,11 @@ Clerk prod instance, Vercel Production). No existing users/data at greenfield.
    - Sign in via Clerk → `GET /api/portfolios` → **200**.
    - `POST /api/portfolios/[id]/performance` on a test portfolio → **201** (snapshot write
      path + DB reachable).
+   > **Operator note (grab the right id):** `POST /api/portfolios` returns the new id nested
+   > as `.portfolio.id` (envelope `{ portfolio: { id } }`, see `lib/portfolio-client/api.ts`),
+   > **not** a top-level `.id`. Reading `.id` instead makes the follow-up
+   > `POST /api/portfolios/<id>/performance` hit an `undefined` path and appear to 404. The
+   > route exists and returns 201 — use `.portfolio.id`.
 9. **Enable/verify cron** — Vercel → Project → **Cron Jobs** shows the daily job. The
    capture-all endpoint now exists (CR-DEPLOY-01 resolved), so the job does real work once
    `CRON_SECRET` is set in Production. Trigger it once manually (Vercel dashboard "Run" or
@@ -196,10 +204,15 @@ higher-risk than an app rollback.
 
 ---
 
-## 6. Change Requests (for the BACKEND team — NOT implemented here)
+## 6. Change Requests
 
-**CR-DEPLOY-01 — Implement the capture-ALL cron endpoint `POST /api/cron/snapshot`. ✅ RESOLVED.**
-- **Status: shipped by the backend team; devops config now wired.** The route
+**CR-DEPLOY-01 — Implement the capture-ALL cron endpoint `POST /api/cron/snapshot`. ✅ DEPLOYED & VERIFIED IN PRODUCTION (2026-07-07).**
+- **Status: live in production.** The route was signed off at RC2 (code-readiness) and is now
+  registered and verified on the production URL: **Vercel → Cron Jobs shows
+  `/api/cron/snapshot @ 0 22 * * *`**, and a manual authorized run returned **200** with summary
+  `{processed:2, succeeded:0, failed:0, skipped:2}` (both portfolios empty → skipped by design;
+  no failures). An unauthenticated call returned **401 `{"error":"Unauthorized"}`**. Full record
+  in §8. The route
   `app/api/cron/snapshot/route.ts` exists with core batch logic in
   `lib/cron/snapshot-batch.ts`, and `vercel.json` now carries the matching
   `functions.maxDuration` entry (see §3). The registered cron path resolves — no more 404.
@@ -221,6 +234,43 @@ higher-risk than an app rollback.
   EXPECTED keyless result (prod-required vars intentionally unset locally), not a defect.
   This clears CODE readiness only — production deploy still requires the 4 deploy-time steps
   in §7 "RC2 verification". Full detail: §7 and `docs/release-notes/RC2.md`.
+
+**CR-AUTH-01 — Add the client sign-in surface + protect `/portfolio`. ✅ SHIPPED & VERIFIED IN PRODUCTION (2026-07-07).**
+- **Why it was raised:** during the go-live smoke test, signed-out `GET /api/portfolios`
+  correctly returned 401, but there was **no client-facing way to sign in** — the app shipped
+  server-side Clerk auth (`requireUser()`) with no sign-in UI and no page-level route protection.
+  A user hitting `/portfolio` had no path to authenticate. This was fixed mid-deploy and the app
+  was redeployed.
+- **What shipped** (Clerk 7.x — note this version exposes `<Show when="signed-in|signed-out">`,
+  **not** the older `<SignedIn>`/`<SignedOut>`):
+  - **Embedded auth pages (Option A):** `app/sign-in/[[...sign-in]]/page.tsx` and
+    `app/sign-up/[[...sign-up]]/page.tsx` (both created) render Clerk's catch-all auth widgets in
+    the app shell. They build as dynamic (`ƒ`) routes.
+  - **Header control:** `components/auth/HeaderAuth.tsx` (created) — signed-out users see a
+    sign-in link (`/sign-in`); signed-in users see Clerk's `<UserButton>`. Gated on the inlined
+    `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` so it renders nothing (no crash) in keyless dev.
+  - **Page-route protection (Option C):** `middleware.ts` (edited) now uses
+    `createRouteMatcher(["/portfolio(.*)"])` + `auth.protect()` to redirect signed-out visitors
+    of `/portfolio` to sign-in. **`/api/**` is deliberately EXCLUDED** from `auth.protect()` so
+    API handlers keep self-enforcing a JSON **401** (never an HTML redirect).
+  - **Keyless-safe provider:** `app/layout.tsx` (edited) mounts `<ClerkProvider>` only when Clerk
+    keys are present, preserving the keyless boot/build invariant.
+  - **Wiring + copy fix:** `components/portfolio/PortfolioPageClient.tsx` (edited) mounts
+    `HeaderAuth`; `lib/portfolio-client/api.ts` (edited) replaced the stale
+    "Clerk ยังไม่ตั้งค่าใน dev" 401 message with a real "please sign in" message.
+  - **Unchanged:** server-side `requireUser()` and the existing 401/404 tenancy behavior.
+- **Verification (independently QA-verified this session):** `npm run lint` = **0**,
+  `npx tsc --noEmit` = **0**, `npm run test` = **0** (69 tests / 8 files), keyless
+  `npm run build` = **0** (sign-in/sign-up emit as dynamic `ƒ` routes; `/portfolio` builds).
+  Production smoke after redeploy: signed-out `/api/portfolios` → 401, signed-in → 200 (§8).
+- **⚠️ Condition:** Clerk is running on **TEST/Development keys** (`pk_test_`/`sk_test_`,
+  "Option B interim"), **not** live production keys. This is fine for controlled/personal use but
+  is **NOT production-grade for a public/multi-user launch** — that requires a custom domain + a
+  verified Clerk **Production** instance with `pk_live_`/`sk_live_` keys. See §8 conditions.
+- **Architecture note:** `docs/portfolio-architecture.md` originally specified Auth.js v5 and
+  explicitly rejected Clerk. Clerk is what actually shipped (server-side already, now client-side
+  via this CR). That decision is reconciled/superseded there with a dated note referencing
+  CR-AUTH-01.
 
 **CR-DEPLOY-02 (optional) — fail-fast env at prod runtime.**
 - `lib/env.ts` `assertEnv()` is available but intentionally not wired into the boot path
@@ -281,5 +331,96 @@ See `docs/release-notes/RC2.md` for the release summary of what CR-DEPLOY-01 shi
 - `[VERIFY-NEXT]` Confirm Vercel picks up `NEXT_PHASE=phase-production-build` in your build
   (used by `lib/env.ts` to stay build-tolerant). It is Next's standard build-phase value;
   regardless, `assertEnv()` is not on the build path, so a mismatch cannot break the build.
-- No deploy, migration, or live cron run has been performed. Everything above requires live
-  Neon/Clerk credentials to execute.
+- ~~No deploy, migration, or live cron run has been performed.~~ **Superseded 2026-07-07:** the
+  first production deploy, migration, smoke test, and manual cron run have now been executed and
+  witnessed — see §8. This caveat is retained (struck) as history.
+
+---
+
+## 8. Production go-live — 2026-07-07
+
+First production deployment of pixel-office. Executed and verified end-to-end this session
+(devops-engineer + qa-engineer). Two change requests shipped together: **CR-DEPLOY-01** (daily
+snapshot cron, previously RC2-signed) and **CR-AUTH-01** (Clerk client sign-in surface, raised
+mid-deploy when the smoke test found no sign-in UI existed — see §6). Deploy procedure followed
+[§4](#4-deploy-checklist-ordered-runnable); results below map to §4 steps 1–9.
+
+### Target
+
+| Item | Value |
+|---|---|
+| Vercel project | `REALTITLE` |
+| Production URL | https://pixel-office-mauve.vercel.app |
+| Root Directory | `pixel-office` |
+| Production branch | `main` |
+| Vercel plan | **Pro** (300s function ceiling — the §3 `maxDuration=60` sits well under it) |
+| First import build | keyless build **succeeded** at import (keyless-boot invariant held) |
+
+### Env vars set (Vercel **Production** scope)
+
+| Variable | Value / note |
+|---|---|
+| `CRON_SECRET` | set (Bearer secret for the cron) |
+| `DATABASE_URL` | Neon **pooled** (`-pooler` host, `pgbouncer=true`) |
+| `DIRECT_URL` | Neon **direct** (no `-pooler`) — migrations only |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_…` — **Clerk TEST/Development instance ("Option B interim")** |
+| `CLERK_SECRET_KEY` | `sk_test_…` — same TEST instance |
+| `FINNHUB_API_KEY` | set — live equity/ETF prices |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` (CR-AUTH-01) |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/sign-up` (CR-AUTH-01) |
+| `COINGECKO_API_KEY` | **skipped** (optional; raises rate limits only) |
+
+### Database — Neon (§4 steps 1, 6)
+
+- Region **AWS `us-east-1`**, matching Vercel `iad1` (§1 region rule satisfied — no cross-region
+  latency).
+- `npm run check:env -- --prod` against the **real prod values** = exit **0** (§4 step 5 preflight
+  gate passed — the deploy-time counterpart to the intentional keyless exit-1 in §7).
+- `npx prisma migrate deploy` on `DIRECT_URL` = exit **0**, applying `0_init` +
+  `1_perf_and_tenant_uniqueness`. `npx prisma migrate status` = **"Database schema is up to
+  date!"**, **8 tables** live.
+
+### Deploy (§4 step 7)
+
+Production build ran `prisma generate && next build` and passed; deployment state **Ready**,
+domain live. After CR-AUTH-01 was implemented, the app was **redeployed** and re-smoked.
+
+### Smoke tests — all PASS on the live production URL (§4 step 8)
+
+| # | Check | Result |
+|---|---|---|
+| 1 | App loads (dashboard renders) | PASS |
+| 2 | `GET /api/company-status` | **200** (`holdingsSource: "mock"`) |
+| 3 | Signed-out `GET /api/portfolios` | **401** (auth enforced) |
+| 4 | Signed-in (via Clerk) `GET /api/portfolios` | **200** |
+| 5 | `POST /api/portfolios` → then `POST /api/portfolios/{id}/performance` | **201** then **201** — `{ok:true, capturedAt:"2026-07-07T00:00:00.000Z"}` |
+
+> **Operator note on check 5 (not an app bug):** the follow-up POST initially looked like a 404
+> because the test snippet read the new portfolio id from `.id`. The create response nests it as
+> **`.portfolio.id`** (`{ portfolio: { id } }`). The route
+> `app/api/portfolios/[id]/performance/route.ts` exists and returns **201**. Grab `.portfolio.id`
+> — see the same note in §4 step 8.
+
+### Cron verification (§4 step 9)
+
+- Vercel → **Cron Jobs** shows `/api/cron/snapshot @ 0 22 * * *` (22:00 UTC).
+- Negative test: `POST /api/cron/snapshot` with **no auth** → **401 `{"error":"Unauthorized"}`**.
+- Authorized `POST` → **200**, summary `{processed:2, succeeded:0, failed:0, skipped:2}`. Both
+  portfolios were empty and skipped **by design** (`_count.holdings === 0`) — this is healthy: no
+  failures. Snapshots become meaningful once holdings are added.
+
+### Release status: **Production Ready (Conditional)**
+
+Live and verified for **controlled/personal use**. Public/multi-user launch is **gated** on the
+conditions below.
+
+### Conditions & limitations (recorded honestly — do not hide)
+
+- **Clerk on TEST keys (Option B).** `pk_test_`/`sk_test_` = a Clerk Development instance. Not
+  production-grade for a public launch. **Before PUBLIC/multi-user launch:** attach a custom
+  domain + a verified Clerk **Production** instance and swap to `pk_live_`/`sk_live_`.
+- **R3 (sequential batch scaling)** — open-monitor. The cron values portfolios sequentially; wall
+  clock grows with portfolio count (§3, `maxDuration=60`, Pro ceiling 300s). Watch as portfolios
+  grow.
+- **R6 (portfolios empty)** — informational. Snapshots skip empty portfolios; the series is only
+  meaningful once holdings are added.

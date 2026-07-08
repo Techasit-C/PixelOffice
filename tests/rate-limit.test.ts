@@ -1,6 +1,11 @@
 // CR-003 F-02: rate limiter behavior — allows N, blocks N+1, resets after window.
-import { describe, it, expect } from "vitest";
-import { InMemoryRateLimiter } from "@/lib/api/rate-limit";
+import { afterEach, beforeEach, describe, it, expect } from "vitest";
+import {
+  InMemoryRateLimiter,
+  enforceRateLimit,
+  __resetRateLimiters,
+} from "@/lib/api/rate-limit";
+import { TooManyRequests } from "@/lib/api/errors";
 
 describe("InMemoryRateLimiter (fixed window)", () => {
   it("allows up to the limit, then blocks with a Retry-After hint", () => {
@@ -35,5 +40,40 @@ describe("InMemoryRateLimiter (fixed window)", () => {
 
     now += 1000; // advance past the window
     expect(rl.check("u").allowed).toBe(true); // fresh window
+  });
+});
+
+// Sprint 5: the /api/agents roster read bucket. Additive to the existing buckets.
+describe("enforceRateLimit — agentsRead bucket", () => {
+  const prevMax = process.env.RATE_LIMIT_AGENTS_MAX;
+
+  beforeEach(() => {
+    __resetRateLimiters();
+    process.env.RATE_LIMIT_AGENTS_MAX = "3"; // small, deterministic threshold
+  });
+
+  afterEach(() => {
+    if (prevMax === undefined) delete process.env.RATE_LIMIT_AGENTS_MAX;
+    else process.env.RATE_LIMIT_AGENTS_MAX = prevMax;
+    __resetRateLimiters();
+  });
+
+  it("allows up to the configured max, then throws TooManyRequests (429)", () => {
+    for (let i = 0; i < 3; i++) {
+      expect(() => enforceRateLimit("user-1", "agentsRead")).not.toThrow();
+    }
+    expect(() => enforceRateLimit("user-1", "agentsRead")).toThrow(TooManyRequests);
+  });
+
+  it("isolates the agentsRead budget per user", () => {
+    for (let i = 0; i < 3; i++) enforceRateLimit("user-1", "agentsRead");
+    // user-1 is exhausted; user-2 has a full, independent budget.
+    expect(() => enforceRateLimit("user-2", "agentsRead")).not.toThrow();
+  });
+
+  it("does not share a budget with the write bucket for the same user", () => {
+    for (let i = 0; i < 3; i++) enforceRateLimit("user-1", "agentsRead");
+    // agentsRead is spent, but write is a separate bucket and still open.
+    expect(() => enforceRateLimit("user-1", "write")).not.toThrow();
   });
 });

@@ -18,7 +18,6 @@ import { PortfolioWidget } from "@/components/widgets/PortfolioWidget";
 import { useWindowManager, type LayoutMap } from "@/lib/use-window-manager";
 import {
   makeAffiliateData,
-  makeAgents,
   makeCompanyStatusData,
   makeCryptoPrices,
   makeGridBotData,
@@ -28,6 +27,7 @@ import {
   type ChatEntry,
 } from "@/lib/mock-data";
 import type { TVAlert } from "@/lib/tradingview-alerts";
+import type { AgentsResponse } from "@/types/agent";
 
 const DEFAULT_LAYOUT: LayoutMap = {
   affiliate: { x: 20, y: 20, minimized: false, closed: false },
@@ -68,7 +68,9 @@ export default function PixelOfficePageClient() {
   const [companyStatus, setCompanyStatus] = useState(makeCompanyStatusData());
   const [gridBot, setGridBot] = useState(makeGridBotData());
   const [trading, setTrading] = useState(makeTradingData());
-  const [agents] = useState(makeAgents());
+  const [agents, setAgents] = useState<AgentsResponse | null>(null);
+  const [agentsLoading, setAgentsLoading] = useState(true);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
   const [quotes, setQuotes] = useState(makeCryptoPrices());
   const [quotesSource, setQuotesSource] = useState<"coingecko" | "mock">();
   const [tvAlerts, setTvAlerts] = useState<TVAlert[]>([]);
@@ -87,6 +89,32 @@ export default function PixelOfficePageClient() {
       setTrading((d) => ({ ...d, updatedAt: t }));
     }, 4000);
     return () => clearInterval(id);
+  }, []);
+
+  // AI agents: read from agent files on the host. These change rarely, so fetch
+  // ONCE on mount (no polling). Honest states — no fake fallback on empty/error.
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/agents");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json: AgentsResponse = await res.json();
+        if (cancelled) return;
+        setAgents(json);
+        setAgentsError(null);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("agents fetch failed", err);
+        setAgentsError(err instanceof Error ? err.message : "unknown error");
+      } finally {
+        if (!cancelled) setAgentsLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Real data: MEXC account holdings (BTC/USDT), mock fallback for PnL fields
@@ -203,7 +231,13 @@ export default function PixelOfficePageClient() {
       case "cryptoPrices":
         return <CryptoPricesWidget quotes={quotes} source={quotesSource} />;
       case "aiAgents":
-        return <AIAgentsWidget agents={agents} />;
+        return (
+          <AIAgentsWidget
+            data={agents}
+            loading={agentsLoading}
+            error={agentsError}
+          />
+        );
       case "trading":
         return <TradingWidget data={trading} />;
       case "tvChart":

@@ -18,7 +18,12 @@ const hasClerkKeys =
 // Deliberately EXCLUDES /api/** : API handlers self-enforce via requireUser()
 // and must answer JSON 401, never an HTML sign-in redirect. /sign-in and
 // /sign-up are also excluded so the auth surface itself stays reachable.
-const isProtectedPage = createRouteMatcher(["/portfolio(.*)"]);
+const isProtectedPage = createRouteMatcher([
+  "/portfolio(.*)",
+  "/executive(.*)",
+  "/operations(.*)",
+  "/mission-control(.*)",
+]);
 
 const passthrough = () => NextResponse.next();
 

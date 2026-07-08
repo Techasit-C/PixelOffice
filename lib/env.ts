@@ -66,6 +66,8 @@ const optionalSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().optional(),
   RATE_LIMIT_WRITE_MAX: z.string().optional(),
   RATE_LIMIT_READ_MAX: z.string().optional(),
+  RATE_LIMIT_AGENTS_MAX: z.string().optional(),
+  AGENTS_CACHE_TTL_MS: z.string().optional(),
 });
 
 export const envSchema = requiredSchema.merge(optionalSchema);

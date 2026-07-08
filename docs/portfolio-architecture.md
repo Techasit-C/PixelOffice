@@ -107,8 +107,21 @@ write. Never let the UI mutate a Holding directly — it only posts Transactions
 
 ### 3.2 Auth + User model
 
-**Recommendation: Auth.js (NextAuth) v5** with the **Prisma adapter**, **Credentials** (email +
-hashed password) for the initial provider.
+> **⚠️ SUPERSEDED — 2026-07-07 (CR-AUTH-01).** The Auth.js v5 recommendation below was **NOT**
+> the auth stack that shipped. The implemented (and now production-deployed) system uses
+> **Clerk**: server-side auth via `requireUser()` was already in place, and **CR-AUTH-01** added
+> the client sign-in surface (`app/sign-in`, `app/sign-up`, `components/auth/HeaderAuth.tsx`),
+> keyless-safe `<ClerkProvider>` in `app/layout.tsx`, and `/portfolio` page protection in
+> `middleware.ts`. Clerk is Clerk 7.x (`<Show when="signed-in|signed-out">`). The Auth.js text
+> below — including the "Rejected: overkill" note against Clerk — is **retained as historical
+> design rationale**, but the decision it records is reversed. See
+> [`docs/deployment.md` §6 (CR-AUTH-01) / §8](deployment.md) and
+> [`docs/release-notes/production-2026-07-07.md`](release-notes/production-2026-07-07.md).
+> Condition: production Clerk currently runs on **TEST keys** — live keys are required before a
+> public/multi-user launch.
+
+**Recommendation (SUPERSEDED — see banner above): Auth.js (NextAuth) v5** with the **Prisma
+adapter**, **Credentials** (email + hashed password) for the initial provider.
 
 - **Why:** v5 is App Router-native (single `auth()` helper usable in Route Handlers, Server
   Components, and `middleware.ts`), integrates with Prisma via an official adapter, and stays
@@ -360,7 +373,7 @@ read-only `PortfolioWidget` on the existing pixel-office dashboard.**
 |---|---|---|---|
 | Postgres + Prisma | SQLite (dev) / raw SQL | Org standard; Decimal + real types; typed client blocks money-as-float | Migration discipline; serverless connection pooling required |
 | Serverless Postgres (Neon/Vercel) prod | Self-managed PG / Railway | Zero ops, free tier fits budget | Cold starts; must use pooled URL |
-| Auth.js v5 (Credentials + Prisma) | Clerk (hosted) / Lucia / DIY JWT | App Router-native, self-hosted, no per-seat cost | v5 newness; we own reset/verify flows |
+| ~~Auth.js v5 (Credentials + Prisma)~~ → **Clerk (shipped)** | Auth.js v5 / Lucia / DIY JWT | **SUPERSEDED 2026-07-07 (CR-AUTH-01):** Clerk shipped instead — see §3.2 banner | Clerk on TEST keys in prod; live keys required before public launch |
 | Vitest | Jest | Native ESM/TS, minimal config, fast | Smaller ecosystem; verify vs modified Next |
 | GitHub Actions CI | None (status quo) / other CI | Standard, free for this scale, gives QA the gate it lacks | ~mins per PR |
 | Decimal money as JSON strings | number | No JS float corruption on wire or in storage | UI must format strings, not compute |
