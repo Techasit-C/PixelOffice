@@ -112,6 +112,31 @@ existed with no sign-in UI and no page-level route protection. Fixed and redeplo
 
 ---
 
+## Post-go-live fix — CR-UI-01 (same day)
+
+**Create-portfolio modal clipped in the zero-portfolios empty state.** Found during post-go-live
+live testing: a signed-in user with **zero portfolios** clicked **"+ พอร์ตใหม่"** and nothing
+happened — the Network tab showed **no `POST /api/portfolios`**, so the button looked dead.
+
+- **Root cause:** the empty state renders `PortfolioSelector` inside a `<Panel>` that applies
+  `clip-path` + `overflow-hidden` (`components/portfolio/ui.tsx`); the `<Modal>` was an in-tree
+  `position: fixed` overlay with **no portal**. A `clip-path` on an ancestor clips even
+  `position: fixed` descendants, so the modal opened but was clipped inside the panel and
+  unreachable — the user could never submit, so no `POST` fired. The button/handler/create-call
+  wiring was already correct and is unchanged. Users with **≥1 portfolio were unaffected** (there
+  the modal sat at page root).
+- **Fix (one file):** `components/portfolio/ui.tsx` — portal the `Modal` overlay to
+  `document.body` via `createPortal` (`react-dom`), with a client-mount gate so SSR / keyless
+  builds never touch `document`. **No server, API, route, or response-shape change.**
+- **Gates (all exit 0):** `npm run lint` = **0**; `npx tsc --noEmit` = **0**; `npm run test` =
+  **0** (10 files, **98 passed** — no regressions); keyless `npm run build` = **0**.
+- **Live-verified after redeploy** (commit `09687d5`, merged to `main`): zero-portfolio user
+  clicks **"+ พอร์ตใหม่"** → modal centers over the full viewport → submit →
+  `POST /api/portfolios` → **201** → new portfolio appears and is auto-selected; header button
+  (≥1 portfolio) still works. Full record: [`docs/deployment.md` §6, §8](../deployment.md).
+
+---
+
 ## References
 
 - Deploy checklist: [`docs/deployment.md` §4](../deployment.md).
