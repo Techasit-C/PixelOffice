@@ -15,6 +15,10 @@ import { LofiWidget } from "@/components/widgets/LofiWidget";
 import { TradingViewChartWidget } from "@/components/widgets/TradingViewChartWidget";
 import { TVSignalsWidget } from "@/components/widgets/TVSignalsWidget";
 import { PortfolioWidget } from "@/components/widgets/PortfolioWidget";
+import {
+  WidgetGatedNotice,
+  type WidgetGateReason,
+} from "@/components/widgets/WidgetGatedNotice";
 import { useWindowManager, type LayoutMap } from "@/lib/use-window-manager";
 import {
   makeAffiliateData,
@@ -60,6 +64,16 @@ const WIDGET_META: Record<
   lofi: { title: "LOFI BEATS TO CODE", width: 300, accent: "#8b5cf6" },
 };
 
+// Map an auth-gated read HTTP status to a degraded-placeholder reason for the
+// PUBLIC root page. 401 = logged-out visitor (this route is intentionally public,
+// see app/page.tsx); 429 = per-user rate limit. Any other status is a normal
+// transient error and is handled by the existing catch (keep last-good state).
+function gateReasonFor(status: number): WidgetGateReason | null {
+  if (status === 401) return "auth";
+  if (status === 429) return "rate";
+  return null;
+}
+
 export default function PixelOfficePageClient() {
   const wm = useWindowManager(DEFAULT_LAYOUT);
   const [resetSignal, setResetSignal] = useState(0);
@@ -75,6 +89,16 @@ export default function PixelOfficePageClient() {
   const [quotesSource, setQuotesSource] = useState<"coingecko" | "mock">();
   const [tvAlerts, setTvAlerts] = useState<TVAlert[]>([]);
   const [chat, setChat] = useState<ChatEntry[]>([]);
+
+  // Degradation gates for the auth-gated reads (M6.1). Null = show data as usual;
+  // "auth"/"rate" = render a calm placeholder instead. Gated on the RESPONSE STATUS
+  // (not the page), so signed-in dashboards — which get 200s — are unaffected.
+  const [companyGate, setCompanyGate] = useState<WidgetGateReason | null>(null);
+  const [quotesGate, setQuotesGate] = useState<WidgetGateReason | null>(null);
+  const [affiliateGate, setAffiliateGate] = useState<WidgetGateReason | null>(
+    null,
+  );
+  const [tvGate, setTvGate] = useState<WidgetGateReason | null>(null);
 
   // Grid Bot / V2 Trading: MEXC has no public API for its native grid bots
   // (UI-only feature), so these stay mock — just tick gently to feel alive.
@@ -118,15 +142,24 @@ export default function PixelOfficePageClient() {
   }, []);
 
   // Real data: MEXC account holdings (BTC/USDT), mock fallback for PnL fields
-  // that a plain balance snapshot can't provide.
+  // that a plain balance snapshot cannot provide. Auth-gated (M6.1): a logged-out
+  // visitor on this public page gets 401 -> degrade to placeholder, never crash.
   useEffect(() => {
     let cancelled = false;
     async function poll() {
       try {
         const res = await fetch("/api/company-status");
+        const gate = gateReasonFor(res.status);
+        if (gate) {
+          if (cancelled) return;
+          setCompanyGate(gate);
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
         setCompanyStatus(json);
+        setCompanyGate(null);
       } catch (err) {
         console.error("company-status poll failed", err);
       }
@@ -139,16 +172,24 @@ export default function PixelOfficePageClient() {
     };
   }, []);
 
-  // Real data: CoinGecko live prices.
+  // Real data: CoinGecko live prices. Auth-gated (M6.1) — degrade on 401/429.
   useEffect(() => {
     let cancelled = false;
     async function poll() {
       try {
         const res = await fetch("/api/crypto-prices");
+        const gate = gateReasonFor(res.status);
+        if (gate) {
+          if (cancelled) return;
+          setQuotesGate(gate);
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
         setQuotes(json.quotes);
         setQuotesSource(json.source);
+        setQuotesGate(null);
       } catch (err) {
         console.error("crypto-prices poll failed", err);
       }
@@ -162,14 +203,23 @@ export default function PixelOfficePageClient() {
   }, []);
 
   // Real data (scaffolded): Bybit/Bitget affiliate earnings, mock fallback until keys are set.
+  // Auth-gated (M6.1) — degrade on 401/429.
   useEffect(() => {
     let cancelled = false;
     async function poll() {
       try {
         const res = await fetch("/api/affiliate");
+        const gate = gateReasonFor(res.status);
+        if (gate) {
+          if (cancelled) return;
+          setAffiliateGate(gate);
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
         setAffiliate(json);
+        setAffiliateGate(null);
       } catch (err) {
         console.error("affiliate poll failed", err);
       }
@@ -183,14 +233,23 @@ export default function PixelOfficePageClient() {
   }, []);
 
   // TradingView alert webhooks (POST /api/tradingview-webhook), polled for display.
+  // GET is auth-gated (M6.1) — degrade on 401/429.
   useEffect(() => {
     let cancelled = false;
     async function poll() {
       try {
         const res = await fetch("/api/tradingview-webhook");
+        const gate = gateReasonFor(res.status);
+        if (gate) {
+          if (cancelled) return;
+          setTvGate(gate);
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
         setTvAlerts(json.alerts);
+        setTvGate(null);
       } catch (err) {
         console.error("tradingview-webhook poll failed", err);
       }
@@ -221,15 +280,27 @@ export default function PixelOfficePageClient() {
   function renderContent(id: string) {
     switch (id) {
       case "affiliate":
-        return <AffiliateWidget data={affiliate} />;
+        return affiliateGate ? (
+          <WidgetGatedNotice reason={affiliateGate} />
+        ) : (
+          <AffiliateWidget data={affiliate} />
+        );
       case "companyStatus":
-        return <CompanyStatusWidget data={companyStatus} />;
+        return companyGate ? (
+          <WidgetGatedNotice reason={companyGate} />
+        ) : (
+          <CompanyStatusWidget data={companyStatus} />
+        );
       case "portfolio":
         return <PortfolioWidget />;
       case "gridBot":
         return <GridBotWidget data={gridBot} />;
       case "cryptoPrices":
-        return <CryptoPricesWidget quotes={quotes} source={quotesSource} />;
+        return quotesGate ? (
+          <WidgetGatedNotice reason={quotesGate} />
+        ) : (
+          <CryptoPricesWidget quotes={quotes} source={quotesSource} />
+        );
       case "aiAgents":
         return (
           <AIAgentsWidget
@@ -243,7 +314,11 @@ export default function PixelOfficePageClient() {
       case "tvChart":
         return <TradingViewChartWidget />;
       case "tvSignals":
-        return <TVSignalsWidget alerts={tvAlerts} />;
+        return tvGate ? (
+          <WidgetGatedNotice reason={tvGate} />
+        ) : (
+          <TVSignalsWidget alerts={tvAlerts} />
+        );
       case "teamChat":
         return <TeamChatWidget entries={chat} onSend={handleSend} />;
       case "lofi":
