@@ -91,7 +91,9 @@ export function AIAgentsWidget({
     );
   }
 
-  if (error) {
+  // Only surface the error screen when we have nothing to show. A transient
+  // failure during a background poll keeps the last good list on screen.
+  if (error && !data) {
     return (
       <div className="py-6 text-center text-[10px] text-danger">
         โหลด agents ไม่สำเร็จ

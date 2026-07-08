@@ -12,15 +12,22 @@ import { usePortfolios } from "@/lib/portfolio-client/hooks";
 import { formatThb, signClass, clampPct } from "@/lib/portfolio-client/format";
 import { Row } from "./Row";
 
+// Refresh the office-homepage portfolio card on a gentle interval, matching the
+// crypto/affiliate/company cadence on that page. The hook's manual refetch is
+// reused under the hood (see usePortfolios); default-off elsewhere.
+const POLL_MS = 60_000;
+
 export function PortfolioWidget() {
-  const { data, error, loading } = usePortfolios();
+  const { data, error, loading } = usePortfolios(POLL_MS);
   const portfolios = data?.portfolios ?? [];
   // Aggregate value across portfolios is a backend concern; the summary endpoint
   // returns per-portfolio figures, so show the primary (first) portfolio here and
   // link out to the full surface for the rest.
   const primary = portfolios[0];
 
-  if (loading) {
+  // Only the first load blanks the card; background polls keep the last good
+  // value on screen (loading/error gated on the absence of data).
+  if (loading && !data) {
     return (
       <div className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -29,7 +36,7 @@ export function PortfolioWidget() {
     );
   }
 
-  if (error) {
+  if (error && !data) {
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
