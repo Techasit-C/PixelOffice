@@ -1,4 +1,13 @@
+// /api/affiliate — aggregated affiliate/commission earnings across exchanges. Auth-gated
+// read (M6.1): internal revenue data, so it requires a signed-in user and is per-user
+// rate-limited. Each per-source live fetch falls back to its mock value on any error.
+// Node runtime: exchange clients sign with crypto + read env at request time.
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth/current-user";
+import { toErrorResponse } from "@/lib/api/errors";
+import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { fetchBybitEarnings } from "@/lib/exchanges/bybit";
 import { fetchBitgetCommissions } from "@/lib/exchanges/bitget";
 import { fetchMexcAffiliateCommission } from "@/lib/exchanges/mexc";
@@ -71,43 +80,54 @@ async function getMexcTodayUsd(): Promise<number | null> {
 }
 
 export async function GET() {
-  const mock = makeAffiliateData();
-  const hasAnyExchangeKey =
-    (process.env.BYBIT_API_KEY && process.env.BYBIT_API_SECRET) ||
-    (process.env.BITGET_API_KEY &&
-      process.env.BITGET_API_SECRET &&
-      process.env.BITGET_API_PASSPHRASE) ||
-    (process.env.MEXC_API_KEY && process.env.MEXC_API_SECRET);
+  try {
+    const { userId } = await requireUser();
+    // Provider-hitting read (multiple exchanges + FX) — cap per user to protect
+    // upstream quotas. 429 → toErrorResponse with Retry-After.
+    enforceRateLimit(userId, "providerRead");
 
-  const [bybitLive, bitgetLive, mexcLive, fxRate] = await Promise.all([
-    getBybitPendingUsd(),
-    getBitgetTodayUsd(),
-    getMexcTodayUsd(),
-    fetchUsdToThbRate().catch((err) => {
-      console.error("[affiliate] FX rate fetch failed, using mock value:", err);
-      return null;
-    }),
-  ]);
+    const mock = makeAffiliateData();
+    const hasAnyExchangeKey =
+      (process.env.BYBIT_API_KEY && process.env.BYBIT_API_SECRET) ||
+      (process.env.BITGET_API_KEY &&
+        process.env.BITGET_API_SECRET &&
+        process.env.BITGET_API_PASSPHRASE) ||
+      (process.env.MEXC_API_KEY && process.env.MEXC_API_SECRET);
 
-  const bybitPending = bybitLive ?? mock.bybitPending;
-  const bitgetToday = bitgetLive ?? mock.bitgetToday;
-  const mexcToday = mexcLive ?? mock.mexcToday;
-  const todayUsd = bybitPending + bitgetToday + mexcToday;
-  const rate = fxRate ?? mock.fxRate;
+    const [bybitLive, bitgetLive, mexcLive, fxRate] = await Promise.all([
+      getBybitPendingUsd(),
+      getBitgetTodayUsd(),
+      getMexcTodayUsd(),
+      fetchUsdToThbRate().catch((err) => {
+        console.error("[affiliate] FX rate fetch failed, using mock value:", err);
+        return null;
+      }),
+    ]);
 
-  return NextResponse.json({
-    todayThb: todayUsd * rate,
-    todayUsd,
-    fxRate: rate,
-    fxSource: "open.er-api.com",
-    bybitPending,
-    bitgetToday,
-    mexcToday,
-    updatedAt: nowClock(),
-    source: hasAnyExchangeKey
-      ? bybitLive || bitgetLive || mexcLive
-        ? "live"
-        : "mock"
-      : "mock",
-  });
+    const bybitPending = bybitLive ?? mock.bybitPending;
+    const bitgetToday = bitgetLive ?? mock.bitgetToday;
+    const mexcToday = mexcLive ?? mock.mexcToday;
+    const todayUsd = bybitPending + bitgetToday + mexcToday;
+    const rate = fxRate ?? mock.fxRate;
+
+    return NextResponse.json({
+      todayThb: todayUsd * rate,
+      todayUsd,
+      fxRate: rate,
+      fxSource: "open.er-api.com",
+      bybitPending,
+      bitgetToday,
+      mexcToday,
+      updatedAt: nowClock(),
+      source: hasAnyExchangeKey
+        ? bybitLive || bitgetLive || mexcLive
+          ? "live"
+          : "mock"
+        : "mock",
+    });
+  } catch (err) {
+    // Only auth (401) / rate-limit (429) reach here — every per-source fetch is
+    // self-contained and falls back to mock on error.
+    return toErrorResponse(err);
+  }
 }

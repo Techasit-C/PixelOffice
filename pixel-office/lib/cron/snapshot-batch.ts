@@ -6,8 +6,8 @@
 // EVERY portfolio after US market close. This module is that job's core logic; the
 // route (app/api/cron/snapshot/route.ts) is a thin adapter that loads all portfolios,
 // brands each via asSystemOwnedPortfolio(), and hands them to runSnapshotBatch().
-import { createHash, timingSafeEqual } from "crypto";
 import { redactSecrets } from "@/lib/market-data/redact";
+import { constantTimeEqual } from "@/lib/api/verify-secret";
 
 /**
  * Result of capturing ONE portfolio.
@@ -57,12 +57,6 @@ export function authorizeCron(
   return constantTimeEqual(provided, secret);
 }
 
-/** Length-safe, constant-time string equality via fixed-width digests. */
-function constantTimeEqual(a: string, b: string): boolean {
-  const ah = createHash("sha256").update(a, "utf8").digest();
-  const bh = createHash("sha256").update(b, "utf8").digest();
-  return timingSafeEqual(ah, bh);
-}
 
 /**
  * Value every portfolio, one snapshot per portfolio, and aggregate the outcome.

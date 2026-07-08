@@ -1,4 +1,13 @@
+// /api/company-status — trading-company balance summary. Auth-gated read (M6.1):
+// the roster of holdings/PnL is internal, so it requires a signed-in user and is
+// per-user rate-limited. Live MEXC balances fall back to mock on any provider error.
+// Node runtime: the MEXC client signs requests with crypto + reads env at request time.
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth/current-user";
+import { toErrorResponse } from "@/lib/api/errors";
+import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { fetchMexcAccountBalances } from "@/lib/exchanges/mexc";
 import { makeCompanyStatusData, nowClock } from "@/lib/mock-data";
 
@@ -22,21 +31,32 @@ async function getMexcHoldings(): Promise<{ btc: number; usdt: number } | null> 
 }
 
 export async function GET() {
-  const mock = makeCompanyStatusData();
-  const holdings = await getMexcHoldings();
+  try {
+    const { userId } = await requireUser();
+    // Provider-hitting read (MEXC) — cap per user to protect upstream quota. A 429
+    // surfaces via toErrorResponse with Retry-After, like every other route.
+    enforceRateLimit(userId, "providerRead");
 
-  return NextResponse.json({
-    // Realized/total PnL, net cashflow, APY and safe-withdraw aren't derivable
-    // from a plain balance snapshot (they need full trade/ledger history), so
-    // these stay mock even once MEXC keys are set.
-    realizedPnl: mock.realizedPnl,
-    totalPnl: mock.totalPnl,
-    netCashflow: mock.netCashflow,
-    apy: mock.apy,
-    safeWithdraw: mock.safeWithdraw,
-    holdingsBtc: holdings?.btc ?? mock.holdingsBtc,
-    holdingsUsdt: holdings?.usdt ?? mock.holdingsUsdt,
-    holdingsSource: holdings ? "live" : "mock",
-    updatedAt: nowClock(),
-  });
+    const mock = makeCompanyStatusData();
+    const holdings = await getMexcHoldings();
+
+    return NextResponse.json({
+      // Realized/total PnL, net cashflow, APY and safe-withdraw aren't derivable
+      // from a plain balance snapshot (they need full trade/ledger history), so
+      // these stay mock even once MEXC keys are set.
+      realizedPnl: mock.realizedPnl,
+      totalPnl: mock.totalPnl,
+      netCashflow: mock.netCashflow,
+      apy: mock.apy,
+      safeWithdraw: mock.safeWithdraw,
+      holdingsBtc: holdings?.btc ?? mock.holdingsBtc,
+      holdingsUsdt: holdings?.usdt ?? mock.holdingsUsdt,
+      holdingsSource: holdings ? "live" : "mock",
+      updatedAt: nowClock(),
+    });
+  } catch (err) {
+    // Only auth (401) / rate-limit (429) reach here — getMexcHoldings is
+    // self-contained and never throws (mock fallback on any provider error).
+    return toErrorResponse(err);
+  }
 }
