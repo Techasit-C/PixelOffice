@@ -1,0 +1,17 @@
+# Parent repo .gitignore — added post repo-unification (2026-07-08)
+
+# Retired nested repo, kept as a full-history archive — must not be tracked
+pixel-office/.git.bak/
+
+# Dependencies / build output (app also has its own .gitignore)
+node_modules/
+.next/
+*.tsbuildinfo
+
+# Local env / secrets (never commit; .env.example stays tracked)
+.env
+.env*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
