@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Skill(artifact-design)",
+      "Artifact",
+      "Read(//tmp/**)",
+      "Bash(node v2.js)",
+      "Bash(cygpath -w /tmp/portfolio_analysis)",
+      "Bash(npx --yes create-next-app@latest pixel-office --typescript --tailwind --eslint --app --src-dir=false --import-alias \"@/*\" --no-turbopack --use-npm)",
+      "WebFetch(domain:www.tradingview.com)",
+      "Bash(mkdir -p \"T:/Claude Code/Ai Agent/pixel-office/.claude\")",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(echo \"EXIT:$?\")",
+      "WebFetch(domain:bybit-exchange.github.io)",
+      "WebFetch(domain:www.bitget.com)",
+      "Bash(curl -s http://localhost:3100/api/crypto-prices)",
+      "Bash(curl -s http://localhost:3100/api/affiliate)",
+      "Bash(curl -s -X POST http://localhost:3100/api/tradingview-webhook -H \"Content-Type: application/json\" -d '{\"symbol\":\"BTCUSDT\",\"action\":\"buy\",\"price\":73200.5,\"strategy\":\"ema-cross\"}')",
+      "Bash(curl -s http://localhost:3100/api/tradingview-webhook)",
+      "WebFetch(domain:mexcdevelop.github.io)",
+      "WebFetch(domain:www.mexc.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh api *)",
+      "Bash(curl -s http://localhost:3100/api/company-status)",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.quotes[0].price, j.source\\)}\\)\")",
+      "Bash(curl -sv http://localhost:3100/api/crypto-prices)",
+      "Bash(npx next *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\({next:p.dependencies.next, react:p.dependencies.react, 'react-dom':p.dependencies['react-dom'], 'eslint-config-next':p.devDependencies['eslint-config-next'], '@types/react':p.devDependencies['@types/react'], '@types/react-dom':p.devDependencies['@types/react-dom']}, null, 2\\)\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\(require\\('next/package.json'\\).version\\)\")",
+      "Bash(curl -s http://localhost:3200/api/crypto-prices)",
+      "Bash(node -pe \"JSON.parse\\(require\\('fs'\\).readFileSync\\(0\\)\\).quotes[0].price\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //PID 12628 //F)",
+      "Bash(node -e \"console.log\\(JSON.stringify\\(require\\('./node_modules/eslint-config-next/package.json'\\).exports, null, 2\\)\\)\")",
+      "Bash(npx prisma *)",
+      "Bash(node -e \"const c=require\\('@prisma/client'\\); console.log\\('PrismaClient export:', typeof c.PrismaClient\\); console.log\\('AssetType enum:', JSON.stringify\\(c.AssetType\\)\\); console.log\\('CostBasisMethod enum:', JSON.stringify\\(c.CostBasisMethod\\)\\);\")"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "trading-platform-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "pixel-office-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "pixel-office", "run", "dev"],
+      "port": 3100,
+      "autoPort": true
+    }
+  ]
+}
