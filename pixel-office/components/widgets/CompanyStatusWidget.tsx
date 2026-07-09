@@ -23,72 +23,7 @@ const futures = data.mexc?.futures;
         value={formatCompactCurrency(data.netCashflow)}
         valueClassName="text-success"
       />
-      <div className="border-t border-white/10 pt-2">
-  <div className="mb-1 flex items-center justify-between">
-    <span className="text-muted-foreground">SPOT</span>
-    <span className="rounded-sm bg-success/15 px-1 text-[10px] text-success">
-      {data.mexc?.spot.source ?? "unavailable"}
-    </span>
-  </div>
-
-  {spotBalances.length > 0 ? (
-    <div className="space-y-1">
-      {spotBalances.map((balance) => (
-        <div key={balance.asset} className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">{balance.asset}</span>
-          <span className="font-mono text-foreground">{balance.total}</span>
-        </div>
-      ))}
-    </div>
-  ) : (
-    <div className="text-xs text-muted-foreground">ไม่มี SPOT balance</div>
-  )}
-</div>
-
-<div className="border-t border-white/10 pt-2">
-  <div className="mb-1 flex items-center justify-between">
-    <span className="text-muted-foreground">FUTURES</span>
-    <span className="rounded-sm bg-white/5 px-1 text-[10px] text-muted-foreground">
-      {futures?.source ?? "unavailable"}
-    </span>
-  </div>
-
-  {futures?.source === "live" ? (
-    <div className="space-y-1 text-xs">
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">Wallet</span>
-        <span className="font-mono text-foreground">{futures.walletBalance}</span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">Available</span>
-        <span className="font-mono text-foreground">{futures.availableBalance}</span>
-      </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">uPnL</span>
-        <span className="font-mono text-foreground">{futures.unrealizedPnl}</span>
-      </div>
-    </div>
-  ) : (
-    <div className="text-xs text-muted-foreground">FUTURES unavailable</div>
-  )}
-</div>
-      <div className="flex items-center justify-between gap-3 py-1.5 text-xs">
-        <span className="text-muted-foreground">Holdings</span>
-        <span className="flex items-center gap-1.5">
-          <span className="font-medium tabular-nums">
-            {data.holdingsBtc.toFixed(4)} BTC · {data.holdingsUsdt.toLocaleString()} USDT
-          </span>
-          {data.holdingsSource === "live" ? (
-            <span className="rounded-sm bg-success/15 px-1 text-[10px] text-success">
-              live
-            </span>
-          ) : data.holdingsSource === "mock" ? (
-            <span className="rounded-sm bg-white/5 px-1 text-[10px] text-muted-foreground/70">
-              mock
-            </span>
-          ) : null}
-        </span>
-      </div>
+      
       <div className="border-t border-white/10 pt-2">
   <div className="mb-1 flex items-center justify-between">
     <span className="text-muted-foreground">SPOT</span>
