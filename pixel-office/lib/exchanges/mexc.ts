@@ -91,13 +91,54 @@ export async function fetchMexcAffiliateCommission(opts: {
   });
   return data.data ?? [];
 }
+export async function fetchMexcSpotAccount(opts: {
+  apiKey: string;
+  apiSecret: string;
+}) {
+  const account = await signedGet<{
+    balances: Array<{
+      asset: string;
+      free: string;
+      locked: string;
+    }>;
+  }>({
+    apiKey: opts.apiKey,
+    apiSecret: opts.apiSecret,
+    path: "/api/v3/account",
+  });
+
+  return account;
+}
+
+export async function fetchMexcSpotOpenOrders(opts: {
+  apiKey: string;
+  apiSecret: string;
+}) {
+  const orders = await signedGet<
+    Array<{
+      symbol: string;
+      side: string;
+      type: string;
+      price: string;
+      origQty: string;
+      executedQty: string;
+      status: string;
+    }>
+  >({
+    apiKey: opts.apiKey,
+    apiSecret: opts.apiSecret,
+    path: "/api/v3/openOrders",
+  });
+
+  return orders;
+}
 export async function fetchMexcFuturesAccount() {
   try {
     // ใช้ MEXC_API_KEY / MEXC_API_SECRET จาก server env เท่านั้น
     // call read-only futures endpoint
     // ถ้า key ไม่มี futures permission ให้ return unavailable ไม่ throw
     return {
-      source: "live",
+      source: "unavailable",
       walletBalance: "0",
       availableBalance: "0",
       unrealizedPnl: "0",

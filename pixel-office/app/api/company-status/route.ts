@@ -8,8 +8,10 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/current-user";
 import { toErrorResponse } from "@/lib/api/errors";
 import { enforceRateLimit } from "@/lib/api/rate-limit";
-import { fetchMexcAccountBalances } from "@/lib/exchanges/mexc";
+import { fetchMexcAccountBalances,fetchMexcSpotAccount,
+  fetchMexcSpotOpenOrders, } from "@/lib/exchanges/mexc";
 import { makeCompanyStatusData, nowClock } from "@/lib/mock-data";
+
 
 
 
@@ -27,7 +29,7 @@ async function getMexcHoldings(): Promise<{ btc: number; usdt: number } | null> 
       usdt: usdt ? Number(usdt.free) + Number(usdt.locked) : 0,
     };
   } catch (err) {
-    console.error("[company-status] MEXC fetch failed, using mock value:", err);
+    console.error("[company-status] MEXC fetch failed, using mock value:", toErrorResponse(err));
     return null;
   }
 }
@@ -41,27 +43,47 @@ export async function GET() {
 
     const mock = makeCompanyStatusData();
     const holdings = await getMexcHoldings();
-    const spotBalances =
-  holdings
-    ? [
-        {
-          asset: "BTC",
-          free: String(holdings.btc ?? "0"),
-          locked: "0",
-          total: String(holdings.btc ?? "0"),
-        },
-        {
-          asset: "USDT",
-          free: String(holdings.usdt ?? "0"),
-          locked: "0",
-          total: String(holdings.usdt ?? "0"),
-        },
-      ].filter((balance) => Number(balance.total) > 0)
+const apiKey = process.env.MEXC_API_KEY;
+const apiSecret = process.env.MEXC_API_SECRET;
+
+const spotAccount =
+  apiKey && apiSecret
+    ? await fetchMexcSpotAccount({ apiKey, apiSecret }).catch(() => null)
+    : null;
+
+const spotOrders =
+  apiKey && apiSecret
+    ? await fetchMexcSpotOpenOrders({ apiKey, apiSecret }).catch(() => [])
     : [];
 
+   const spotBalances =
+  spotAccount?.balances
+    ?.map((balance) => {
+      const free = Number(balance.free ?? 0);
+      const locked = Number(balance.locked ?? 0);
+      const total = free + locked;
+
+      return {
+        asset: balance.asset,
+        free: String(balance.free ?? "0"),
+        locked: String(balance.locked ?? "0"),
+        total: String(total),
+      };
+    })
+    .filter((balance) => Number(balance.total) > 0) ?? [];
+
 const spot = {
-  source: holdings ? ("live" as const) : ("unavailable" as const),
+  source: spotAccount ? ("live" as const) : ("unavailable" as const),
   balances: spotBalances,
+  openOrders: spotOrders.map((order) => ({
+    symbol: order.symbol,
+    side: order.side,
+    type: order.type,
+    price: String(order.price ?? "0"),
+    origQty: String(order.origQty ?? "0"),
+    executedQty: String(order.executedQty ?? "0"),
+    status: order.status,
+  })),
 };
 
 const futures = {

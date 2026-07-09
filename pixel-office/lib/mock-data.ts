@@ -169,6 +169,7 @@ export interface MexcCompanyStatus {
   spot: {
     source: "live" | "pending" | "unavailable";
     balances: MexcSpotBalance[];
+    openOrders: MexcSpotOrder[];
   };
   futures: {
     source: "live" | "pending" | "unavailable";
@@ -177,4 +178,13 @@ export interface MexcCompanyStatus {
     unrealizedPnl: string;
     positions: MexcFuturesPosition[];
   };
+}
+export interface MexcSpotOrder {
+  symbol: string;
+  side: string;
+  type: string;
+  price: string;
+  origQty: string;
+  executedQty: string;
+  status: string;
 }
