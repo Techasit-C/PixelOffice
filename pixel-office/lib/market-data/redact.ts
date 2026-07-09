@@ -9,7 +9,7 @@
 // token / apikey / api_key / key = <secret> in a query string or "key: value".
 const TOKEN_QUERY = /([?&](?:token|api[_-]?key|key)=)[^&\s]+/gi;
 // Known env-configured secrets, redacted by exact value if present.
-const SECRET_ENV_VARS = ["FINNHUB_API_KEY", "COINGECKO_API_KEY"];
+const SECRET_ENV_VARS = ["FINNHUB_API_KEY", "COINGECKO_API_KEY","MEXC_API_KEY","MEXC_API_SECRET"];
 
 /** Return a log-safe string for any thrown value, with secrets redacted. */
 export function redactSecrets(input: unknown): string {
