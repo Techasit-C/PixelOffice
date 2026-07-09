@@ -22,6 +22,8 @@ export interface CompanyStatusData {
   safeWithdraw: number;
   updatedAt: string;
   holdingsSource?: "live" | "mock";
+   mexc?: MexcCompanyStatus;
+  
 }
 
 export interface GridBotData {
@@ -145,4 +147,34 @@ export function nowClock() {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+export interface MexcSpotBalance {
+  asset: string;
+  free: string;
+  locked: string;
+  total: string;
+}
+
+export interface MexcFuturesPosition {
+  symbol: string;
+  side: string;
+  size: string;
+  entryPrice?: string;
+  markPrice?: string;
+  unrealizedPnl?: string;
+}
+
+export interface MexcCompanyStatus {
+  source: "live" | "pending" | "unavailable";
+  spot: {
+    source: "live" | "pending" | "unavailable";
+    balances: MexcSpotBalance[];
+  };
+  futures: {
+    source: "live" | "pending" | "unavailable";
+    walletBalance: string;
+    availableBalance: string;
+    unrealizedPnl: string;
+    positions: MexcFuturesPosition[];
+  };
 }

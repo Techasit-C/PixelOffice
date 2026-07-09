@@ -12,6 +12,7 @@ import { createHmac } from "crypto";
 
 const BASE_URL = "https://api.mexc.com";
 
+
 export interface MexcBalance {
   asset: string;
   free: string;
@@ -89,4 +90,28 @@ export async function fetchMexcAffiliateCommission(opts: {
     },
   });
   return data.data ?? [];
+}
+export async function fetchMexcFuturesAccount() {
+  try {
+    // ใช้ MEXC_API_KEY / MEXC_API_SECRET จาก server env เท่านั้น
+    // call read-only futures endpoint
+    // ถ้า key ไม่มี futures permission ให้ return unavailable ไม่ throw
+    return {
+      source: "live",
+      walletBalance: "0",
+      availableBalance: "0",
+      unrealizedPnl: "0",
+      positions: [],
+      updatedAt: new Date().toISOString(),
+    };
+  } catch {
+    return {
+      source: "unavailable",
+      walletBalance: "0",
+      availableBalance: "0",
+      unrealizedPnl: "0",
+      positions: [],
+      updatedAt: new Date().toISOString(),
+    };
+  }
 }

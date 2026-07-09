@@ -11,6 +11,8 @@ import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { fetchMexcAccountBalances } from "@/lib/exchanges/mexc";
 import { makeCompanyStatusData, nowClock } from "@/lib/mock-data";
 
+
+
 async function getMexcHoldings(): Promise<{ btc: number; usdt: number } | null> {
   const apiKey = process.env.MEXC_API_KEY;
   const apiSecret = process.env.MEXC_API_SECRET;
@@ -39,6 +41,36 @@ export async function GET() {
 
     const mock = makeCompanyStatusData();
     const holdings = await getMexcHoldings();
+    const spotBalances =
+  holdings
+    ? [
+        {
+          asset: "BTC",
+          free: String(holdings.btc ?? "0"),
+          locked: "0",
+          total: String(holdings.btc ?? "0"),
+        },
+        {
+          asset: "USDT",
+          free: String(holdings.usdt ?? "0"),
+          locked: "0",
+          total: String(holdings.usdt ?? "0"),
+        },
+      ].filter((balance) => Number(balance.total) > 0)
+    : [];
+
+const spot = {
+  source: holdings ? ("live" as const) : ("unavailable" as const),
+  balances: spotBalances,
+};
+
+const futures = {
+  source: "unavailable" as const,
+  walletBalance: "0",
+  availableBalance: "0",
+  unrealizedPnl: "0",
+  positions: [],
+};
 
     return NextResponse.json({
       // Realized/total PnL, net cashflow, APY and safe-withdraw aren't derivable
@@ -52,6 +84,11 @@ export async function GET() {
       holdingsBtc: holdings?.btc ?? mock.holdingsBtc,
       holdingsUsdt: holdings?.usdt ?? mock.holdingsUsdt,
       holdingsSource: holdings ? "live" : "mock",
+      mexc: {
+  source: holdings ? "live" : "unavailable",
+  spot,
+  futures,
+},
       updatedAt: nowClock(),
     });
   } catch (err) {
@@ -59,4 +96,5 @@ export async function GET() {
     // self-contained and never throws (mock fallback on any provider error).
     return toErrorResponse(err);
   }
+  
 }
