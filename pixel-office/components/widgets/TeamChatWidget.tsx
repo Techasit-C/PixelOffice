@@ -2,6 +2,7 @@
 
 import { Send } from "lucide-react";
 import { useState } from "react";
+import { MockRibbon } from "@/components/ui/MockRibbon";
 import type { ChatEntry } from "@/lib/mock-data";
 
 export function TeamChatWidget({
@@ -22,6 +23,7 @@ export function TeamChatWidget({
 
   return (
     <div>
+      <MockRibbon>DEMO — local-only · ไม่มี backend (ข้อความไม่ถูกบันทึก)</MockRibbon>
       <div className="mb-2 max-h-32 min-h-8 overflow-y-auto scrollbar-thin text-xs">
         {entries.length === 0 ? (
           <div className="text-[10px] text-muted-foreground">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageShell } from "@/components/ui/PageShell";
 import { PixelCard, SourceTag, StatLine } from "@/components/ui/PixelCard";
+import { MockRibbon } from "@/components/ui/MockRibbon";
 import { TVSignalsWidget } from "@/components/widgets/TVSignalsWidget";
 import { CryptoPricesWidget } from "@/components/widgets/CryptoPricesWidget";
 import { GridBotWidget } from "@/components/widgets/GridBotWidget";
@@ -34,15 +35,6 @@ interface CompanyStatus {
 }
 interface TVResponse {
   alerts: TVAlert[];
-}
-
-/** Honest "mock / UI-only" ribbon for the exchange-less bot widgets. */
-function MockRibbon() {
-  return (
-    <div className="mb-2 rounded-sm border border-warning/40 bg-warning/10 px-2 py-1 text-[9px] leading-tight text-warning">
-      UI / mock — ไม่มี grid-bot API จาก exchange (no exchange grid-bot API)
-    </div>
-  );
 }
 
 function HealthRow({

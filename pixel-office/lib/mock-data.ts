@@ -88,7 +88,7 @@ export function makeGridBotData(): GridBotData {
     rangeLow: 0.0025,
     rangeHigh: 0.0045,
     status: "RUNNING",
-    source: "scrape (API) · cache",
+    source: "mock (ui-only)",
     updatedAt: "11:14",
   };
 }

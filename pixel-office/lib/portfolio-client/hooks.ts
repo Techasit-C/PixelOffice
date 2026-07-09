@@ -72,8 +72,23 @@ export function useAsyncData<T>(
   return { data, error, loading, refetch };
 }
 
-export function usePortfolios(): AsyncState<PortfolioListResponse> {
-  return useAsyncData((signal) => portfolioApi.list(signal), []);
+export function usePortfolios(
+  pollMs?: number,
+): AsyncState<PortfolioListResponse> {
+  const state = useAsyncData((signal) => portfolioApi.list(signal), []);
+  const { refetch } = state;
+
+  // Optional background polling: re-trigger the existing loader on an interval.
+  // Off by default (pollMs undefined) so other callers are unaffected; the
+  // interval is torn down on unmount / interval change. `refetch` is stable
+  // (useCallback), so this effect only re-runs when the cadence itself changes.
+  useEffect(() => {
+    if (!pollMs) return;
+    const id = setInterval(refetch, pollMs);
+    return () => clearInterval(id);
+  }, [pollMs, refetch]);
+
+  return state;
 }
 
 export function useValuation(id: string | undefined): AsyncState<ValuationEnvelope> {

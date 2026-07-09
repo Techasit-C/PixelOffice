@@ -115,8 +115,10 @@ export default function PixelOfficePageClient() {
     return () => clearInterval(id);
   }, []);
 
-  // AI agents: read from agent files on the host. These change rarely, so fetch
-  // ONCE on mount (no polling). Honest states — no fake fallback on empty/error.
+  // AI agents: read from agent files on the host. These change rarely, so poll
+  // on a gentle 60s interval (matches the crypto/affiliate/company cadence on
+  // this page). Honest states — no fake fallback on empty/error; the loading
+  // gate only trips on first settle, so background refreshes don't flicker.
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -136,8 +138,10 @@ export default function PixelOfficePageClient() {
       }
     }
     load();
+    const id = setInterval(load, 60_000);
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, []);
 
@@ -294,7 +298,7 @@ export default function PixelOfficePageClient() {
       case "portfolio":
         return <PortfolioWidget />;
       case "gridBot":
-        return <GridBotWidget data={gridBot} />;
+        return <GridBotWidget data={gridBot} mock />;
       case "cryptoPrices":
         return quotesGate ? (
           <WidgetGatedNotice reason={quotesGate} />
@@ -310,7 +314,7 @@ export default function PixelOfficePageClient() {
           />
         );
       case "trading":
-        return <TradingWidget data={trading} />;
+        return <TradingWidget data={trading} mock />;
       case "tvChart":
         return <TradingViewChartWidget />;
       case "tvSignals":

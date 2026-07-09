@@ -1,10 +1,18 @@
 import { Row } from "./Row";
 import { signColor } from "@/lib/utils";
+import { MockRibbon } from "@/components/ui/MockRibbon";
 import type { GridBotData } from "@/lib/mock-data";
 
-export function GridBotWidget({ data }: { data: GridBotData }) {
+export function GridBotWidget({
+  data,
+  mock = false,
+}: {
+  data: GridBotData;
+  mock?: boolean;
+}) {
   return (
     <div>
+      {mock ? <MockRibbon>DEMO — ไม่ใช่ข้อมูลจริง (mock / ui-only)</MockRibbon> : null}
       <Row
         label="ROI"
         value={`${data.roiPercent.toFixed(2)}%`}
