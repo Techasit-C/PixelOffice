@@ -1,5 +1,5 @@
-import { CHARACTERS } from "./characters-data";
-import { Character } from "./Character";
+import type { AgentsResponse } from "@/types/agent";
+import { OfficeWorkers } from "./OfficeWorkers";
 
 const NEON_LINES: Array<{ text: string; color: string }> = [
   { text: "EAT", color: "#ff3b6a" },
@@ -87,7 +87,7 @@ function Plant({ left, top }: { left: number; top: number }) {
   );
 }
 
-function Desk({
+export function Desk({
   left,
   top,
   monitors = 1,
@@ -134,7 +134,12 @@ function Trophy({ left, top }: { left: number; top: number }) {
   );
 }
 
-export function OfficeScene({ resetSignal }: { resetSignal: number }) {
+export function OfficeScene({
+  agents,
+}: {
+  resetSignal: number;
+  agents: AgentsResponse | null;
+}) {
   return (
     <div
       className="relative h-full w-full overflow-hidden"
@@ -171,9 +176,7 @@ export function OfficeScene({ resetSignal }: { resetSignal: number }) {
       <Desk left={480} top={460} monitors={1} />
       <Desk left={1020} top={560} monitors={1} />
 
-      {CHARACTERS.map((def) => (
-        <Character key={def.id} def={def} resetSignal={resetSignal} />
-      ))}
+      <OfficeWorkers agents={agents} />
     </div>
   );
 }

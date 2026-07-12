@@ -335,7 +335,7 @@ export default function PixelOfficePageClient() {
   return (
     <div className="relative h-full w-full overflow-auto bg-black">
       <div className="relative" style={{ width: 1700, height: 1150 }}>
-        <OfficeScene resetSignal={resetSignal} />
+        <OfficeScene resetSignal={resetSignal} agents={agents} />
 
         {Object.keys(DEFAULT_LAYOUT).map((id) => {
           const meta = WIDGET_META[id];
