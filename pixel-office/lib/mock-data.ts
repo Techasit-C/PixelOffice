@@ -22,8 +22,10 @@ export interface CompanyStatusData {
   safeWithdraw: number;
   updatedAt: string;
   holdingsSource?: "live" | "mock";
-   mexc?: MexcCompanyStatus;
-  
+  // Provenance of the PnL/cashflow block: "live" (all from MEXC reads), "partial"
+  // (some), "mock"/"unavailable" otherwise. Optional for backward-compat.
+  pnlSource?: "live" | "partial" | "mock" | "unavailable";
+  mexc?: MexcCompanyStatus;
 }
 
 export interface GridBotData {
@@ -164,6 +166,15 @@ export interface MexcFuturesPosition {
   unrealizedPnl?: string;
 }
 
+export interface MexcFuturesOrder {
+  symbol: string;
+  side: string;
+  type: string;
+  price: string;
+  vol: string;
+  state: string;
+}
+
 export interface MexcCompanyStatus {
   source: "live" | "pending" | "unavailable";
   spot: {
@@ -172,11 +183,12 @@ export interface MexcCompanyStatus {
     openOrders: MexcSpotOrder[];
   };
   futures: {
-    source: "live" | "pending" | "unavailable";
+    source: "live" | "mock" | "pending" | "unavailable";
     walletBalance: string;
     availableBalance: string;
     unrealizedPnl: string;
     positions: MexcFuturesPosition[];
+    openOrders: MexcFuturesOrder[];
   };
 }
 export interface MexcSpotOrder {
