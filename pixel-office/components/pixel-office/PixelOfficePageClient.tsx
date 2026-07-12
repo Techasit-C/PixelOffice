@@ -76,7 +76,6 @@ function gateReasonFor(status: number): WidgetGateReason | null {
 
 export default function PixelOfficePageClient() {
   const wm = useWindowManager(DEFAULT_LAYOUT);
-  const [resetSignal, setResetSignal] = useState(0);
 
   const [affiliate, setAffiliate] = useState(makeAffiliateData());
   const [companyStatus, setCompanyStatus] = useState(makeCompanyStatusData());
@@ -334,8 +333,8 @@ export default function PixelOfficePageClient() {
 
   return (
     <div className="relative h-full w-full overflow-auto bg-black">
-      <div className="relative" style={{ width: 1700, height: 1150 }}>
-        <OfficeScene resetSignal={resetSignal} agents={agents} />
+      <div className="relative" style={{ width: 1700, height: 1320 }}>
+        <OfficeScene agents={agents} />
 
         {Object.keys(DEFAULT_LAYOUT).map((id) => {
           const meta = WIDGET_META[id];
@@ -363,7 +362,6 @@ export default function PixelOfficePageClient() {
 
       <ControlBar
         onResetLayout={wm.resetLayout}
-        onArrangeCharacters={() => setResetSignal((s) => s + 1)}
         closedWidgets={closedWidgets}
         onReopen={wm.openWindow}
       />

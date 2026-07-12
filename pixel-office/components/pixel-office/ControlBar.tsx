@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { LayoutGrid, RotateCcw, Users } from "lucide-react";
+import { LayoutGrid, RotateCcw } from "lucide-react";
 
 // Additive "Views" launcher for the new full-page surfaces. Kept self-contained so
 // it doesn't touch any existing ControlBar control or the office's behavior.
@@ -50,12 +50,10 @@ function ViewsLauncher() {
 
 export function ControlBar({
   onResetLayout,
-  onArrangeCharacters,
   closedWidgets,
   onReopen,
 }: {
   onResetLayout: () => void;
-  onArrangeCharacters: () => void;
   closedWidgets: { id: string; title: string }[];
   onReopen: (id: string) => void;
 }) {
@@ -80,15 +78,6 @@ export function ControlBar({
             + {w.title}
           </button>
         ))}
-      </div>
-      <div className="fixed bottom-3 right-3 z-50">
-        <button
-          type="button"
-          onClick={onArrangeCharacters}
-          className="flex items-center gap-1.5 rounded-md border border-border/70 bg-black/60 px-2.5 py-1.5 text-[10px] text-muted-foreground backdrop-blur hover:border-border hover:text-foreground"
-        >
-          <Users className="h-3 w-3" /> จัดวางตัวละคร
-        </button>
       </div>
     </>
   );

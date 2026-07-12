@@ -8,8 +8,8 @@ import { AgentAvatar } from "./AgentAvatar";
 // overlap each other.
 const ZONES: Record<AgentTeam, { left: number; top: number; grid: string }> = {
   trading: { left: 360, top: 280, grid: "grid grid-cols-7" },
-  developer: { left: 360, top: 640, grid: "grid grid-cols-6" },
-  other: { left: 360, top: 980, grid: "flex flex-wrap" },
+  developer: { left: 360, top: 680, grid: "grid grid-cols-6" },
+  other: { left: 360, top: 1080, grid: "flex flex-wrap" },
 };
 
 /**

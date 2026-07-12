@@ -137,7 +137,6 @@ function Trophy({ left, top }: { left: number; top: number }) {
 export function OfficeScene({
   agents,
 }: {
-  resetSignal: number;
   agents: AgentsResponse | null;
 }) {
   return (
