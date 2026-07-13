@@ -1,24 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import { OfficeScene } from "@/components/pixel-office/OfficeScene";
 import { ControlBar } from "@/components/pixel-office/ControlBar";
-import { Drawer } from "@/components/ui/Drawer";
-import { AgentCharacterPanel } from "@/components/pixel-office/AgentCharacterPanel";
-import { OFFICE_CHARACTERS } from "@/components/pixel-office/office-characters";
-import { HOTSPOT_META, type HotspotId } from "@/components/pixel-office/office-hotspots";
 import { WidgetWindow } from "@/components/widgets/WidgetWindow";
 import { AffiliateWidget } from "@/components/widgets/AffiliateWidget";
 import { CompanyStatusWidget } from "@/components/widgets/CompanyStatusWidget";
-import { GridBotWidget } from "@/components/widgets/GridBotWidget";
 import { AIAgentsWidget } from "@/components/widgets/AIAgentsWidget";
-import { TradingWidget } from "@/components/widgets/TradingWidget";
 import { CryptoPricesWidget } from "@/components/widgets/CryptoPricesWidget";
-import { TeamChatWidget } from "@/components/widgets/TeamChatWidget";
-import { LofiWidget } from "@/components/widgets/LofiWidget";
-import { TradingViewChartWidget } from "@/components/widgets/TradingViewChartWidget";
-import { TVSignalsWidget } from "@/components/widgets/TVSignalsWidget";
 import {
   TradingSignalsWidget,
   type TradingSignal,
@@ -33,55 +22,21 @@ import {
   makeAffiliateData,
   makeCompanyStatusData,
   makeCryptoPrices,
-  makeGridBotData,
-  makeTradingData,
-  jitter,
-  nowClock,
-  type ChatEntry,
 } from "@/lib/mock-data";
-import type { TVAlert } from "@/lib/tradingview-alerts";
 import type { AgentsResponse } from "@/types/agent";
 
-// Three.js/R3F touch WebGL + `document` at render time, so this must never be
-// part of the server-rendered tree — ssr:false is required (and only legal
-// from a Client Component, which this file already is). This is the
-// interactive 3D office (office_room_complete.glb + mini-character agents +
-// hotspots) — it lives on this page, not Mission Control.
-const PixelOffice3DScene = dynamic(
-  () =>
-    import("@/components/pixel-office/PixelOffice3DScene").then(
-      (m) => m.PixelOffice3DScene,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex h-[420px] items-center justify-center text-[11px] text-muted-foreground sm:h-[520px]">
-        กำลังโหลดฉาก 3D…
-      </div>
-    ),
-  },
-);
-
-// The office scene now stacks a lobby strip + 5 cozy zone cards down the
-// center band (x 340-1340, y 20-2024) — see OfficeScene.tsx. The
-// bottom-center widgets (trading/tvChart/tvSignals/teamChat) are pushed
-// below that content so they never sit on top of the trading/developer desk
-// clusters; the side-column widgets (x 20 and x 1360) are already clear of
-// the center band.
+// Default view is intentionally lean: the office scene plus six side-column
+// widgets in two balanced columns (left x20, right x1360). Decorative-only /
+// mock floating widgets (Grid Bot, V2 Trading, TV Chart, TV Signals, Lofi,
+// Team Chat, 3D Office) were removed from the default view to keep the surface
+// focused on the live/real panels.
 const DEFAULT_LAYOUT: LayoutMap = {
   affiliate: { x: 20, y: 20, minimized: false, closed: false },
+  aiAgents: { x: 20, y: 330, minimized: false, closed: false },
+  tradingSignals: { x: 20, y: 640, minimized: false, closed: false },
   companyStatus: { x: 1360, y: 20, minimized: false, closed: false },
-  portfolio: { x: 1360, y: 640, minimized: false, closed: false },
-  gridBot: { x: 20, y: 330, minimized: false, closed: false },
   cryptoPrices: { x: 1360, y: 330, minimized: false, closed: false },
-  aiAgents: { x: 20, y: 640, minimized: false, closed: false },
-  trading: { x: 400, y: 2070, minimized: false, closed: false },
-  tvChart: { x: 750, y: 2050, minimized: false, closed: false },
-  tvSignals: { x: 1230, y: 2050, minimized: false, closed: false },
-  teamChat: { x: 900, y: 2350, minimized: false, closed: false },
-  lofi: { x: 1360, y: 950, minimized: false, closed: false },
-  tradingSignals: { x: 20, y: 950, minimized: false, closed: false },
-  office3d: { x: 530, y: 2700, minimized: false, closed: false },
+  portfolio: { x: 1360, y: 640, minimized: false, closed: false },
 };
 
 const WIDGET_META: Record<
@@ -91,50 +46,14 @@ const WIDGET_META: Record<
   affiliate: { title: "รายได้ AFFILIATE วันนี้", width: 300, accent: "#f2c14e" },
   companyStatus: { title: "COMPANY STATUS", width: 300, accent: "#3b82f6" },
   portfolio: { title: "PORTFOLIO", width: 300, accent: "#22c55e" },
-  gridBot: { title: "GRID BOT", width: 300, accent: "#22d3ee" },
   cryptoPrices: { title: "CRYPTO PRICES", width: 300, accent: "#22d3ee" },
   aiAgents: { title: "AI AGENTS", width: 300, accent: "#a78bfa" },
-  trading: { title: "V2 TRADING", width: 320, accent: "#3b82f6" },
-  tvChart: { title: "TV CHART", width: 460, accent: "#2962ff" },
-  tvSignals: { title: "TV SIGNALS", width: 280, accent: "#2962ff" },
-  teamChat: { title: "TEAM CHAT", width: 340, accent: "#ec4899" },
-  lofi: { title: "LOFI BEATS TO CODE", width: 300, accent: "#8b5cf6" },
   tradingSignals: {
     title: "AI TRADING SIGNALS",
     width: 320,
     accent: "#22c55e",
   },
-  office3d: { title: "3D OFFICE", width: 640, accent: "#a78bfa" },
 };
-
-/** One data-source health line for the 3D office's "System Health" drawer. */
-function HealthRow({
-  label,
-  ok,
-  detail,
-}: {
-  label: string;
-  ok: boolean;
-  detail: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2 border-t border-border/40 py-1.5 text-xs first:border-t-0">
-      <span className="flex items-center gap-2">
-        <span
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{
-            backgroundColor: ok ? "#22c55e" : "#f2c14e",
-            boxShadow: ok
-              ? "0 0 6px 1px rgba(34,197,94,0.55)"
-              : "0 0 6px 1px rgba(242,193,78,0.55)",
-          }}
-        />
-        <span className="text-muted-foreground">{label}</span>
-      </span>
-      <span className="shrink-0 text-[10px] text-muted-foreground/70">{detail}</span>
-    </div>
-  );
-}
 
 // Map an auth-gated read HTTP status to a degraded-placeholder reason for the
 // PUBLIC root page. 401 = logged-out visitor (this route is intentionally public,
@@ -151,15 +70,11 @@ export default function PixelOfficePageClient() {
 
   const [affiliate, setAffiliate] = useState(makeAffiliateData());
   const [companyStatus, setCompanyStatus] = useState(makeCompanyStatusData());
-  const [gridBot, setGridBot] = useState(makeGridBotData());
-  const [trading, setTrading] = useState(makeTradingData());
   const [agents, setAgents] = useState<AgentsResponse | null>(null);
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [agentsError, setAgentsError] = useState<string | null>(null);
   const [quotes, setQuotes] = useState(makeCryptoPrices());
   const [quotesSource, setQuotesSource] = useState<"coingecko" | "mock">();
-  const [tvAlerts, setTvAlerts] = useState<TVAlert[]>([]);
-  const [chat, setChat] = useState<ChatEntry[]>([]);
 
   // Degradation gates for the auth-gated reads (M6.1). Null = show data as usual;
   // "auth"/"rate" = render a calm placeholder instead. Gated on the RESPONSE STATUS
@@ -169,29 +84,8 @@ export default function PixelOfficePageClient() {
   const [affiliateGate, setAffiliateGate] = useState<WidgetGateReason | null>(
     null,
   );
-  const [tvGate, setTvGate] = useState<WidgetGateReason | null>(null);
   const [signals, setSignals] = useState<TradingSignal[]>([]);
   const [signalsGate, setSignalsGate] = useState<WidgetGateReason | null>(null);
-
-  // Which 3D-office panel is open (null = none). A hotspot and a character
-  // panel are mutually exclusive and both closed by the same Drawer.
-  const [activeHotspot, setActiveHotspot] = useState<HotspotId | null>(null);
-  const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
-
-  // Grid Bot / V2 Trading: MEXC has no public API for its native grid bots
-  // (UI-only feature), so these stay mock — just tick gently to feel alive.
-  useEffect(() => {
-    const id = setInterval(() => {
-      const t = nowClock();
-      setGridBot((d) => ({
-        ...d,
-        gridProfit: jitter(d.gridProfit, 0.02),
-        updatedAt: t,
-      }));
-      setTrading((d) => ({ ...d, updatedAt: t }));
-    }, 4000);
-    return () => clearInterval(id);
-  }, []);
 
   // AI agents: read from agent files on the host. These change rarely, so poll
   // on a gentle 60s interval (matches the crypto/affiliate/company cadence on
@@ -314,36 +208,6 @@ export default function PixelOfficePageClient() {
     };
   }, []);
 
-  // TradingView alert webhooks (POST /api/tradingview-webhook), polled for display.
-  // GET is auth-gated (M6.1) — degrade on 401/429.
-  useEffect(() => {
-    let cancelled = false;
-    async function poll() {
-      try {
-        const res = await fetch("/api/tradingview-webhook");
-        const gate = gateReasonFor(res.status);
-        if (gate) {
-          if (cancelled) return;
-          setTvGate(gate);
-          return;
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (cancelled) return;
-        setTvAlerts(json.alerts);
-        setTvGate(null);
-      } catch (err) {
-        console.error("tradingview-webhook poll failed", err);
-      }
-    }
-    poll();
-    const id = setInterval(poll, 10_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
-
   // Read-only AI trading signals (display only — never places orders). Backend
   // returns { signals, generatedAt, source }. Auth-gated (M6.1) like the other
   // reads on this public page — degrade to a calm notice on 401/429, keep the
@@ -376,13 +240,6 @@ export default function PixelOfficePageClient() {
     };
   }, []);
 
-  function handleSend(text: string) {
-    setChat((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), author: "you", text, timestamp: nowClock() },
-    ]);
-  }
-
   const closedWidgets = useMemo(
     () =>
       Object.entries(wm.layout)
@@ -390,17 +247,6 @@ export default function PixelOfficePageClient() {
         .map(([id]) => ({ id, title: WIDGET_META[id]?.title ?? id })),
     [wm.layout],
   );
-
-  // Health flags for the 3D office's "System Health" hotspot drawer — reuses
-  // the exact same state this page already polls, no new fetches.
-  const cryptoLive = quotesSource === "coingecko";
-  const affiliateLive = affiliate.source === "live";
-  const holdingsLive = companyStatus.holdingsSource === "live";
-  const agentErrorCount = useMemo(
-    () => (agents?.teams ?? []).flatMap((t) => t.agents).filter((a) => a.status === "error").length,
-    [agents],
-  );
-  const activeCharacter = OFFICE_CHARACTERS.find((c) => c.id === activeCharacterId) ?? null;
 
   function renderContent(id: string) {
     switch (id) {
@@ -418,8 +264,6 @@ export default function PixelOfficePageClient() {
         );
       case "portfolio":
         return <PortfolioWidget />;
-      case "gridBot":
-        return <GridBotWidget data={gridBot} mock />;
       case "cryptoPrices":
         return quotesGate ? (
           <WidgetGatedNotice reason={quotesGate} />
@@ -434,30 +278,9 @@ export default function PixelOfficePageClient() {
             error={agentsError}
           />
         );
-      case "trading":
-        return <TradingWidget data={trading} mock />;
-      case "tvChart":
-        return <TradingViewChartWidget />;
-      case "tvSignals":
-        return tvGate ? (
-          <WidgetGatedNotice reason={tvGate} />
-        ) : (
-          <TVSignalsWidget alerts={tvAlerts} />
-        );
       case "tradingSignals":
         return (
           <TradingSignalsWidget signals={signals} gateReason={signalsGate} />
-        );
-      case "teamChat":
-        return <TeamChatWidget entries={chat} onSend={handleSend} />;
-      case "lofi":
-        return <LofiWidget />;
-      case "office3d":
-        return (
-          <PixelOffice3DScene
-            onHotspotSelect={setActiveHotspot}
-            onCharacterSelect={setActiveCharacterId}
-          />
         );
       default:
         return null;
@@ -466,7 +289,7 @@ export default function PixelOfficePageClient() {
 
   return (
     <div className="relative h-full w-full overflow-auto bg-black">
-      <div className="relative" style={{ width: 1700, height: 3350 }}>
+      <div className="relative" style={{ width: 1700, height: 1640 }}>
         <OfficeScene agents={agents} />
 
         {Object.keys(DEFAULT_LAYOUT).map((id) => {
@@ -498,97 +321,6 @@ export default function PixelOfficePageClient() {
         closedWidgets={closedWidgets}
         onReopen={wm.openWindow}
       />
-
-      {/* 3D-office panel drawer — opened by clicking a character/hotspot in
-          the 3D scene (or its keyboard-accessible fallback buttons). Every
-          branch reuses state already polled above; nothing here fetches
-          anything new. */}
-      <Drawer
-        open={activeHotspot !== null || activeCharacterId !== null}
-        title={
-          activeCharacter
-            ? activeCharacter.roleLabel
-            : activeHotspot
-              ? HOTSPOT_META[activeHotspot].title
-              : ""
-        }
-        accent={
-          activeHotspot
-            ? HOTSPOT_META[activeHotspot].accent
-            : "#a78bfa"
-        }
-        onClose={() => {
-          setActiveHotspot(null);
-          setActiveCharacterId(null);
-        }}
-      >
-        {activeCharacter ? (
-          <AgentCharacterPanel
-            character={activeCharacter}
-            agents={agents}
-            loading={agentsLoading}
-            error={agentsError}
-          />
-        ) : null}
-
-        {activeHotspot === "systemHealth" ? (
-          <div>
-            <HealthRow
-              label="Crypto prices"
-              ok={cryptoLive}
-              detail={cryptoLive ? "live" : "mock"}
-            />
-            <HealthRow
-              label="Affiliate feed"
-              ok={affiliateLive}
-              detail={affiliateLive ? "live" : "mock"}
-            />
-            <HealthRow
-              label="Company holdings"
-              ok={holdingsLive}
-              detail={holdingsLive ? "live" : "mock"}
-            />
-            <HealthRow
-              label="AI agents"
-              ok={!agentsError && agentErrorCount === 0}
-              detail={
-                agentsError
-                  ? "error"
-                  : agentErrorCount > 0
-                    ? `${agentErrorCount} error`
-                    : "ok"
-              }
-            />
-            <div className="mt-2 text-[9px] text-muted-foreground/60">
-              * API latency, cache hit-rate, and rate-limit budget aren&apos;t wired
-              to a real telemetry source yet — this panel only reflects the
-              data-source flags above.
-            </div>
-          </div>
-        ) : null}
-
-        {activeHotspot === "trading" ? (
-          <div className="space-y-3">
-            <CryptoPricesWidget quotes={quotes} source={quotesSource} />
-            <div className="text-[10px] text-muted-foreground">
-              Grid Bot and V2 Trading (elsewhere on this page) are UI-only mocks —
-              MEXC has no public API for them yet.
-            </div>
-          </div>
-        ) : null}
-
-        {activeHotspot === "strategy" ? (
-          <div className="text-[11px] text-muted-foreground">
-            ยังไม่มี execution log — ไม่มีแหล่งข้อมูลงานที่รันจริง (no execution log yet)
-          </div>
-        ) : null}
-
-        {activeHotspot === "reports" ? (
-          <div className="text-[11px] text-muted-foreground">
-            Reports &amp; docs export isn&apos;t wired to a backend yet — coming soon.
-          </div>
-        ) : null}
-      </Drawer>
     </div>
   );
 }

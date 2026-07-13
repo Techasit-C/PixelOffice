@@ -4,7 +4,6 @@ import {
   Diamond,
   DoorOpen,
   Presentation,
-  Sprout,
   Trophy,
   type LucideIcon,
 } from "lucide-react";
@@ -330,29 +329,6 @@ function StickyNote({
   );
 }
 
-/** Decorative, non-numeric mini release/QA pulse for the mission corkboard. */
-function MissionPulseChart({ color }: { color: string }) {
-  return (
-    <div
-      className="relative h-full min-h-[44px] w-full overflow-hidden rounded-sm border bg-black/30"
-      style={{ borderColor: `${color}44` }}
-    >
-      <svg viewBox="0 0 100 30" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
-        <polyline
-          points="0,22 10,18 20,24 30,12 40,17 50,8 60,15 70,6 80,13 90,9 100,14"
-          fill="none"
-          stroke={color}
-          strokeWidth={1.6}
-          className="animate-chart-scan"
-        />
-      </svg>
-      <span className="absolute bottom-1 left-1.5 text-[7px] uppercase tracking-wide text-muted-foreground/50">
-        mission pulse (decorative)
-      </span>
-    </div>
-  );
-}
-
 function IdeMock() {
   return (
     <div className="h-16 w-28 shrink-0 overflow-hidden rounded-sm border border-[#3b82f655] bg-[#0a0e16]">
@@ -406,57 +382,6 @@ function CoffeeCorner() {
     <div className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-sm border border-[#3b82f655] bg-black/30 px-3 py-1.5">
       <Coffee className="h-3.5 w-3.5 text-[#93c5fd]" />
       <span className="whitespace-nowrap font-pixel text-[8px] text-[#93c5fd]">BREAK AREA</span>
-    </div>
-  );
-}
-
-/** Server rack column with blinking LEDs, linked by a decorative data pulse. */
-function ServerRack({ racks = 3 }: { racks?: number }) {
-  return (
-    <div className="relative flex gap-2">
-      <svg
-        className="pointer-events-none absolute -top-3 left-0 h-3 w-full"
-        viewBox="0 0 100 12"
-        preserveAspectRatio="none"
-      >
-        <line x1="8" y1="6" x2="92" y2="6" stroke="#f9731655" strokeWidth={1} />
-        <circle cx="20" cy="6" r="1.6" fill="#f97316" className="animate-node-pulse" />
-        <circle
-          cx="50"
-          cy="6"
-          r="1.6"
-          fill="#f97316"
-          className="animate-node-pulse"
-          style={{ animationDelay: "0.5s" }}
-        />
-        <circle
-          cx="80"
-          cy="6"
-          r="1.6"
-          fill="#f97316"
-          className="animate-node-pulse"
-          style={{ animationDelay: "1s" }}
-        />
-      </svg>
-      {Array.from({ length: racks }).map((_, r) => (
-        <div
-          key={r}
-          className="flex w-10 flex-col gap-1 rounded-sm border border-[#f9731655] bg-[#0a0e16] p-1.5"
-        >
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between rounded-[1px] bg-black/60 px-1 py-0.5"
-            >
-              <span className="h-1 w-3 rounded-full bg-[#f97316]/30" />
-              <span
-                className="animate-led h-1.5 w-1.5 rounded-full bg-[#22c55e]"
-                style={{ animationDelay: `${(r * 5 + i) * 0.15}s` }}
-              />
-            </div>
-          ))}
-        </div>
-      ))}
     </div>
   );
 }
@@ -528,27 +453,6 @@ function CoffeeBar() {
   );
 }
 
-/** A labelled storage shelf of grey supply boxes for the server corner. */
-function StorageShelf() {
-  const box = ["#6b7280", "#9ca3af", "#78716c"];
-  return (
-    <div className="flex shrink-0 flex-col items-center gap-1">
-      <div className="grid grid-cols-3 grid-rows-2 gap-1 rounded-sm border-2 border-[#5a4632] bg-[#3a2c1e] p-1.5">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-4 w-5 rounded-[1px]"
-            style={{ background: box[i % box.length], opacity: 0.82 }}
-          />
-        ))}
-      </div>
-      <span className="font-pixel text-[7px] uppercase tracking-wide text-[#f97316]/60">
-        Storage
-      </span>
-    </div>
-  );
-}
-
 const FLOOR_LEFT = 340;
 const FLOOR_WIDTH = 1000;
 const LOBBY_TOP = 20;
@@ -559,10 +463,6 @@ const TRADING_TOP = 374;
 const TRADING_HEIGHT = 640;
 const DEV_TOP = 1034;
 const DEV_HEIGHT = 490;
-const OPS_TOP = 1544;
-const OPS_HEIGHT = 260;
-const INFRA_TOP = 1824;
-const INFRA_HEIGHT = 200;
 
 export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
   const tradingAgents = agents?.teams.find((t) => t.team === "trading")?.agents ?? [];
@@ -573,12 +473,7 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
 
   const allAgents = [...tradingAgents, ...developerAgents, ...otherAgents];
   const errorCount = allAgents.filter((a) => a.status === "error").length;
-  const availableCount = allAgents.length - errorCount;
   const devErrorCount = developerAgents.filter((a) => a.status === "error").length;
-
-  const scopeSummary =
-    agents?.scopes.map((s) => `${s.scope}: ${s.readable ? s.count : "n/a"}`).join("  ·  ") ||
-    "n/a";
 
   return (
     <div
@@ -696,73 +591,6 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
         </div>
         <div className="mt-3">
           <TeamGrid agents={developerAgents} columns={6} emptyLabel="No developer agents installed" />
-        </div>
-      </ZoneCard>
-
-      {/* 4. OPERATIONS WALL — mission corkboard, purple, existing data only */}
-      <ZoneCard
-        dept="operations"
-        left={FLOOR_LEFT}
-        top={OPS_TOP}
-        width={FLOOR_WIDTH}
-        height={OPS_HEIGHT}
-        title="OPERATIONS WALL"
-        subtitle="Mission board — live agent roster health"
-      >
-        <div
-          className="rounded-md border border-[#5a4632] p-3"
-          style={{
-            background:
-              "radial-gradient(#00000022 1px, transparent 1px) 0 0/10px 10px, #6b4a2f",
-          }}
-        >
-          <div className="grid grid-cols-5 gap-3">
-            <StickyNote label="Online" value={`${availableCount}/${allAgents.length}`} color="#a855f7" rotate={-1.5} />
-            <StickyNote
-              label="Errors Detected"
-              value={String(errorCount)}
-              color={errorCount ? "#ef4444" : "#a855f7"}
-              rotate={1}
-            />
-            <StickyNote label="Data Source" value={agents?.source ?? "n/a"} color="#a855f7" rotate={-1} />
-            <StickyNote label="Scopes" value={scopeSummary} small color="#a855f7" rotate={1.5} />
-            <MissionPulseChart color="#a855f7" />
-          </div>
-        </div>
-        <div className="mt-3 text-[9px] text-muted-foreground/60">
-          Last sync: {agents ? new Date(agents.generatedAt).toLocaleString() : "—"}
-        </div>
-      </ZoneCard>
-
-      {/* 5. SERVER / STORAGE CORNER — small, orange */}
-      <ZoneCard
-        dept="infrastructure"
-        left={FLOOR_LEFT}
-        top={INFRA_TOP}
-        width={FLOOR_WIDTH}
-        height={INFRA_HEIGHT}
-        title="SERVER & STORAGE CORNER"
-        subtitle="Server & AI cluster"
-      >
-        <div className="flex flex-wrap items-center gap-8 pt-2">
-          <ServerRack racks={3} />
-          <div className="flex flex-col gap-2 text-[9px] text-muted-foreground/70">
-            <div className="flex items-center gap-1.5">
-              <span className="animate-led h-1.5 w-1.5 rounded-full bg-[#f97316]" />
-              DB CLUSTER — nominal
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span
-                className="animate-led h-1.5 w-1.5 rounded-full bg-[#f97316]"
-                style={{ animationDelay: "0.3s" }}
-              />
-              AI CLUSTER — nominal
-            </div>
-          </div>
-          <Sprout className="h-5 w-5 shrink-0 text-[#22c55e]/50" />
-          <StorageShelf />
-          <ServerRack racks={2} />
-          <Plant />
         </div>
       </ZoneCard>
     </div>
