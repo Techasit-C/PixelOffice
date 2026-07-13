@@ -143,21 +143,63 @@ body {
     animation: type-hand 0.9s ease-in-out infinite;
   }
 
-  @keyframes visor-scan {
-    0% {
-      transform: translateX(-6px);
-      opacity: 0.25;
+  @keyframes idle-bounce {
+    0%,
+    100% {
+      transform: translateY(0) scaleY(1);
     }
     50% {
-      opacity: 0.9;
-    }
-    100% {
-      transform: translateX(10px);
-      opacity: 0.25;
+      transform: translateY(-4px) scaleY(1.03);
     }
   }
-  .animate-visor-scan {
-    animation: visor-scan 2.4s ease-in-out infinite;
+  .animate-idle-bounce {
+    animation: idle-bounce 2.8s ease-in-out infinite;
+  }
+
+  @keyframes bubble-pulse {
+    0%,
+    18% {
+      opacity: 0;
+      transform: translate(-50%, 3px) scale(0.85);
+    }
+    26%,
+    68% {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+    80%,
+    100% {
+      opacity: 0;
+      transform: translate(-50%, 3px) scale(0.85);
+    }
+  }
+  .animate-bubble-pulse {
+    animation: bubble-pulse 8s ease-in-out infinite;
+  }
+
+  @keyframes neon-flicker {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    8% {
+      opacity: 0.4;
+    }
+    10% {
+      opacity: 1;
+    }
+    24% {
+      opacity: 1;
+    }
+    26% {
+      opacity: 0.55;
+    }
+    28% {
+      opacity: 1;
+    }
+  }
+  .animate-neon-flicker {
+    animation: neon-flicker 4.5s ease-in-out infinite;
   }
 
   @keyframes hologram-flicker {
@@ -266,7 +308,9 @@ body {
     .animate-float,
     .animate-head-tilt,
     .animate-type-hand,
-    .animate-visor-scan,
+    .animate-idle-bounce,
+    .animate-bubble-pulse,
+    .animate-neon-flicker,
     .animate-hologram,
     .animate-spin-slow,
     .animate-server-pulse,

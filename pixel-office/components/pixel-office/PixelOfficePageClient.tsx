@@ -33,12 +33,12 @@ import {
 import type { TVAlert } from "@/lib/tradingview-alerts";
 import type { AgentsResponse } from "@/types/agent";
 
-// The office scene now stacks a lobby strip + 5 department floors down the
-// center band (x 340-1340, y 20-1854) — see OfficeScene.tsx. The
+// The office scene now stacks a lobby strip + 5 cozy zone cards down the
+// center band (x 340-1340, y 20-2024) — see OfficeScene.tsx. The
 // bottom-center widgets (trading/tvChart/tvSignals/teamChat) are pushed
-// below that content so they never sit on top of the new trading/developer
-// desks; the side-column widgets (x 20 and x 1360) are already clear of the
-// center band.
+// below that content so they never sit on top of the trading/developer desk
+// clusters; the side-column widgets (x 20 and x 1360) are already clear of
+// the center band.
 const DEFAULT_LAYOUT: LayoutMap = {
   affiliate: { x: 20, y: 20, minimized: false, closed: false },
   companyStatus: { x: 1360, y: 20, minimized: false, closed: false },
@@ -46,10 +46,10 @@ const DEFAULT_LAYOUT: LayoutMap = {
   gridBot: { x: 20, y: 330, minimized: false, closed: false },
   cryptoPrices: { x: 1360, y: 330, minimized: false, closed: false },
   aiAgents: { x: 20, y: 640, minimized: false, closed: false },
-  trading: { x: 400, y: 1900, minimized: false, closed: false },
-  tvChart: { x: 750, y: 1880, minimized: false, closed: false },
-  tvSignals: { x: 1230, y: 1880, minimized: false, closed: false },
-  teamChat: { x: 900, y: 2180, minimized: false, closed: false },
+  trading: { x: 400, y: 2070, minimized: false, closed: false },
+  tvChart: { x: 750, y: 2050, minimized: false, closed: false },
+  tvSignals: { x: 1230, y: 2050, minimized: false, closed: false },
+  teamChat: { x: 900, y: 2350, minimized: false, closed: false },
   lofi: { x: 1360, y: 950, minimized: false, closed: false },
 };
 
@@ -339,7 +339,7 @@ export default function PixelOfficePageClient() {
 
   return (
     <div className="relative h-full w-full overflow-auto bg-black">
-      <div className="relative" style={{ width: 1700, height: 2600 }}>
+      <div className="relative" style={{ width: 1700, height: 2800 }}>
         <OfficeScene agents={agents} />
 
         {Object.keys(DEFAULT_LAYOUT).map((id) => {

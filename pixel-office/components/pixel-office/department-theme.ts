@@ -1,6 +1,7 @@
-// Shared visual identity per department (Bloomberg-floor redesign). One color
-// per department, used consistently for panel borders/glow, headers, and desk
-// accents so each floor reads as a distinct zone at a glance.
+// Shared visual identity per department (cozy isometric office redesign). One
+// color per department, used consistently for zone plaques, desk accents,
+// and character shirts so each corner of the room reads as a distinct team
+// at a glance.
 export type Department =
   | "executive"
   | "trading"
@@ -22,12 +23,12 @@ export const DEPARTMENT_THEME: Record<Department, DepartmentTheme> = {
   infrastructure: { label: "Infrastructure", color: "#f97316", colorSoft: "#fdba74" },
 };
 
-/** The glass-panel gradient every floor panel shares, tinted by its department. */
-export function glassBackground(color: string): string {
-  return `linear-gradient(180deg, ${color}14, rgba(6,9,15,0.92) 42%)`;
+/** Warm parchment/wood-panel background for a zone card, tinted by department. */
+export function coziBackground(color: string): string {
+  return `linear-gradient(180deg, ${color}22, rgba(42,31,22,0.94) 46%)`;
 }
 
-/** The ambient outer glow + inner wash every floor panel shares. */
+/** The ambient outer glow + inner wash every zone card shares. */
 export function glowShadow(color: string): string {
-  return `0 0 24px ${color}22, inset 0 0 40px ${color}0d`;
+  return `0 4px 18px rgba(0,0,0,0.45), 0 0 20px ${color}22, inset 0 0 32px ${color}0f`;
 }

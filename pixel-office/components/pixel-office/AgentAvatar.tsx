@@ -2,7 +2,7 @@ import type { AgentInfo } from "@/types/agent";
 import { OperatorAvatar } from "./OperatorAvatar";
 import { TradingDesk } from "./TradingDesk";
 import { DEPARTMENT_THEME, type Department } from "./department-theme";
-import { getDeskKind, getMonitorCount, getRoleIcon } from "./role-visuals";
+import { getCatchphrase, getDeskKind, getMonitorCount, getRoleIcon } from "./role-visuals";
 import { teamLabel } from "@/lib/agents/teams";
 
 function departmentOf(agent: AgentInfo): Department {
@@ -12,10 +12,10 @@ function departmentOf(agent: AgentInfo): Department {
 }
 
 /**
- * One roster agent, rendered as a modern animated AI operator standing at a
- * Bloomberg-style desk. No per-agent timers — all motion is CSS, driven by
- * the classes on OperatorAvatar/TradingDesk. Fixed cell so a grid of these
- * can never overlap.
+ * One roster agent, rendered as a chibi AI operator seated at a cozy desk. No
+ * per-agent timers — all motion is CSS, driven by the classes on
+ * OperatorAvatar/TradingDesk. Fixed cell so a grid of these can never
+ * overlap.
  */
 export function AgentAvatar({ agent }: { agent: AgentInfo }) {
   const dept = departmentOf(agent);
@@ -29,6 +29,7 @@ export function AgentAvatar({ agent }: { agent: AgentInfo }) {
   const RoleIcon = getRoleIcon(agent.name);
   const monitors = getMonitorCount(agent.name);
   const deskKind = getDeskKind(agent.name);
+  const catchphrase = getCatchphrase(agent.name);
 
   const tooltip = [
     agent.name,
@@ -38,7 +39,7 @@ export function AgentAvatar({ agent }: { agent: AgentInfo }) {
   ].join("\n");
 
   return (
-    <div className="relative h-[180px] w-[128px]" title={tooltip}>
+    <div className="relative h-[214px] w-[128px]" title={tooltip}>
       {/* status dot — same colors/glow as the AI-AGENTS widget */}
       <span
         className="absolute right-2 top-1 z-20 h-2.5 w-2.5 rounded-full"
@@ -55,19 +56,23 @@ export function AgentAvatar({ agent }: { agent: AgentInfo }) {
         {agent.model}
       </div>
 
-      {/* modern AI operator — floats/hovers just above its desk */}
-      <div className="absolute left-1/2 top-[26px] z-10 -translate-x-1/2">
+      {/* chibi operator — its own speech-bubble slot + bouncing figure. Starts
+          well below the model badge so the periodic speech bubble never
+          collides with it. */}
+      <div className="absolute left-1/2 top-8 z-10 -translate-x-1/2">
         <OperatorAvatar
+          name={agent.name}
           accent={theme.color}
           errored={isError}
-          hologram={isCeo}
+          executive={isCeo}
           AccessoryIcon={RoleIcon}
+          catchphrase={catchphrase}
         />
       </div>
 
       <TradingDesk
         left={20}
-        top={92}
+        top={128}
         monitors={monitors}
         accent={theme.color}
         Icon={RoleIcon}

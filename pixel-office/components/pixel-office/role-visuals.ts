@@ -142,3 +142,49 @@ export function getDeskKind(name: string): DeskKind {
   if (known) return known;
   return FALLBACK_DESK_KINDS[hashString(key) % FALLBACK_DESK_KINDS.length];
 }
+
+// Short decorative speech-bubble lines per role — flavor only, never a claim
+// about a real running task or log line.
+const CATCHPHRASES: Record<string, string> = {
+  "ai-ceo": "Reviewing the room…",
+  "master-decision-agent": "Weighing it all up…",
+  "cio-agent": "Balancing the book…",
+  "fundamental-analyst": "Reading the filings…",
+  "technical-analyst": "Watching the chart…",
+  "macro-economist": "Tracking the macro…",
+  "crypto-research-analyst": "Checking on-chain…",
+  "quant-analyst": "Running the numbers…",
+  "swing-trader": "Eyeing a setup…",
+  "dca-portfolio-agent": "Steady as she goes…",
+  "risk-manager-agent": "Scanning for risk…",
+  "news-sentiment-agent": "Skimming headlines…",
+  "portfolio-optimizer": "Tuning the weights…",
+  "investment-analyst": "Pulling fresh data…",
+  "solution-architect": "Sketching the design…",
+  "frontend-developer": "Polishing the UI…",
+  "backend-developer": "Wiring the API…",
+  "database-engineer": "Tending the data…",
+  "ai-integration-engineer": "Linking the models…",
+  "devops-engineer": "Shipping it out…",
+  "qa-engineer": "Ticking the checklist…",
+  "performance-engineer": "Chasing milliseconds…",
+  "security-engineer": "Locking things down…",
+  "prompt-engineer": "Tuning the prompt…",
+  "documentation-engineer": "Writing it up…",
+  "project-manager": "Planning the sprint…",
+};
+
+const FALLBACK_CATCHPHRASES = [
+  "On it…",
+  "Heads down…",
+  "Focused…",
+  "Just thinking…",
+];
+
+/** Deterministic decorative speech-bubble line for any agent, known or custom. */
+export function getCatchphrase(name: string): string {
+  const key = name.trim().toLowerCase();
+  const known = CATCHPHRASES[key];
+  if (known) return known;
+  return FALLBACK_CATCHPHRASES[hashString(key) % FALLBACK_CATCHPHRASES.length];
+}

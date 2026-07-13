@@ -141,9 +141,10 @@ function ScreenMotif({ kind, glow }: { kind: DeskKind; glow: string }) {
 }
 
 /**
- * A Bloomberg-style multi-monitor desk. The first screen shows the agent's
- * role glyph; any additional screens play a small role-appropriate motion
- * motif. Pure presentation — no live data is implied by any shape or motion.
+ * A cozy pixel-HD desk: a warm wooden surface with a keyboard strip, a mug
+ * and a notebook, topped by one or more monitors. The first screen shows the
+ * agent's role glyph; any additional screens play a small role-appropriate
+ * motion motif. Pure presentation — no live data is implied by any shape.
  */
 export function TradingDesk({
   left,
@@ -194,8 +195,23 @@ export function TradingDesk({
           </div>
         ))}
       </div>
-      <div className="mt-1 h-2 rounded-sm bg-[#1c2430]" style={{ width }} />
-      <div className="h-7 rounded-b-sm bg-[#141a22]" style={{ width }} />
+      {/* keyboard strip */}
+      <div
+        className="mt-1 h-2 rounded-sm bg-[#2a1f16]"
+        style={{ width, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.3)" }}
+      />
+      {/* wooden desk surface, with a mug + notebook for cozy flavor */}
+      <div
+        className="relative h-7 rounded-b-sm"
+        style={{
+          width,
+          background: "linear-gradient(180deg, #6b4a2f, #4a3320)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+        }}
+      >
+        <span className="absolute bottom-1 left-0.5 h-1.5 w-1.5 rounded-full border border-black/30 bg-[#e5e7eb]/80" />
+        <span className="absolute bottom-1 right-0.5 h-1.5 w-2 rounded-[1px] bg-[#93c5fd]/70" />
+      </div>
     </div>
   );
 }
