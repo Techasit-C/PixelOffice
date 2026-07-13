@@ -1,181 +1,409 @@
+import type { ReactNode } from "react";
 import type { AgentsResponse } from "@/types/agent";
-import { OfficeWorkers } from "./OfficeWorkers";
+import { AgentAvatar } from "./AgentAvatar";
+import { TeamGrid } from "./OfficeWorkers";
+import { DEPARTMENT_THEME, type Department } from "./department-theme";
 
-const NEON_LINES: Array<{ text: string; color: string }> = [
-  { text: "EAT", color: "#ff3b6a" },
-  { text: "SLEEP", color: "#ffd23b" },
-  { text: "CODE", color: "#3bff7a" },
-  { text: "REPEAT", color: "#ff8a3b" },
+// Fixed fake tickers/heatmap for the Bloomberg-style market wall. Presentation
+// only — this component never receives a live price feed, so these numbers
+// are static flavor, not a claim about real markets.
+const TICKERS: { symbol: string; change: number }[] = [
+  { symbol: "SPY", change: 0.42 },
+  { symbol: "QQQ", change: 0.87 },
+  { symbol: "VOO", change: 0.38 },
+  { symbol: "SCHD", change: -0.12 },
+  { symbol: "BTC", change: 1.85 },
+  { symbol: "ETH", change: -0.64 },
+  { symbol: "NVDA", change: 2.1 },
+  { symbol: "AAPL", change: 0.21 },
+  { symbol: "O", change: -0.35 },
+  { symbol: "DXY", change: 0.08 },
 ];
 
-function NeonSign() {
-  return (
-    <div className="absolute left-[720px] top-[30px] flex flex-col gap-1 rounded border-2 border-white/10 bg-black/40 px-4 py-3">
-      {NEON_LINES.map((line) => (
-        <span
-          key={line.text}
-          className="font-pixel text-lg leading-none"
-          style={{
-            color: line.color,
-            textShadow: `0 0 6px ${line.color}, 0 0 14px ${line.color}`,
-          }}
-        >
-          {line.text}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function StudioSign() {
-  return (
-    <div className="absolute left-[980px] top-[70px] w-[300px] rounded border-4 border-[#5a4632] bg-[#2a2018] px-4 py-3 text-center shadow-[0_0_25px_rgba(0,0,0,0.5)]">
-      <div className="font-pixel text-xl leading-relaxed text-[#f2e6c9]">
-        PIXEL
-        <br />
-        DREAM
-      </div>
-      <div className="mt-1 font-pixel text-[10px] tracking-widest text-[#c9a86a]">
-        — GAMES —
-      </div>
-    </div>
-  );
-}
-
-function Window() {
-  return (
-    <div className="absolute left-[600px] top-[10px] h-[220px] w-[300px] overflow-hidden rounded border-4 border-[#4a3a2a] bg-gradient-to-b from-[#7ec8f2] to-[#bfe7ff]">
-      <div
-        className="absolute inset-0"
-        style={{
-          clipPath:
-            "polygon(0% 100%, 0% 70%, 10% 65%, 22% 72%, 35% 60%, 48% 68%, 60% 55%, 75% 66%, 88% 58%, 100% 68%, 100% 100%)",
-          background: "#9fb3c8",
-        }}
-      />
-      <div className="absolute inset-x-0 top-0 h-full bg-[repeating-linear-gradient(0deg,rgba(90,70,50,0.25)_0px,rgba(90,70,50,0.25)_3px,transparent_3px,transparent_18px)]" />
-      <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 bg-[#4a3a2a]" />
-    </div>
-  );
-}
-
-function Bookshelf({ left, top }: { left: number; top: number }) {
-  const colors = ["#c94f4f", "#4f8cc9", "#e0b03b", "#4fbf7a", "#9a5fc9"];
-  return (
-    <div
-      className="absolute grid grid-cols-4 grid-rows-3 gap-1 rounded border-2 border-[#5a4632] bg-[#3a2c1e] p-2"
-      style={{ left, top, width: 120, height: 110 }}
-    >
-      {Array.from({ length: 12 }).map((_, i) => (
-        <div
-          key={i}
-          className="rounded-[1px]"
-          style={{ background: colors[i % colors.length], opacity: 0.85 }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Plant({ left, top }: { left: number; top: number }) {
-  return (
-    <div className="absolute" style={{ left, top }}>
-      <div className="mx-auto h-10 w-10 rounded-full bg-[#2f7a4a]" />
-      <div className="mx-auto -mt-3 h-8 w-8 rounded-full bg-[#3a9159]" />
-      <div className="mx-auto h-6 w-8 rounded-b-md bg-[#7a5a3a]" />
-    </div>
-  );
-}
-
-export function Desk({
+function FloorPanel({
+  dept,
   left,
   top,
-  monitors = 1,
+  width,
+  height,
+  title,
+  subtitle,
+  children,
 }: {
+  dept: Department;
   left: number;
   top: number;
-  monitors?: number;
+  width: number;
+  height: number;
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
 }) {
-  return (
-    <div className="absolute" style={{ left, top }}>
-      <div className="flex gap-2">
-        {Array.from({ length: monitors }).map((_, i) => (
-          <div
-            key={i}
-            className="h-12 w-16 rounded-sm border-2 border-[#1a1a1a] bg-[#0a1a2a]"
-            style={{ boxShadow: "0 0 8px rgba(59,180,255,0.35) inset" }}
-          >
-            <div className="mt-1 h-1 w-3/4 bg-[#3bd6ff]/70" />
-          </div>
-        ))}
-      </div>
-      <div className="mt-1 h-3 w-full rounded-sm bg-[#6b4a2f]" />
-      <div className="h-8 w-full rounded-b-sm bg-[#4a3320]" />
-    </div>
-  );
-}
-
-function WaterCooler({ left, top }: { left: number; top: number }) {
-  return (
-    <div className="absolute" style={{ left, top }}>
-      <div className="mx-auto h-8 w-8 rounded-full bg-[#8fd0ee] opacity-90" />
-      <div className="mx-auto -mt-1 h-10 w-10 rounded-md bg-[#dfeff7]" />
-      <div className="mx-auto h-6 w-12 rounded-sm bg-[#c9dbe6]" />
-    </div>
-  );
-}
-
-function Trophy({ left, top }: { left: number; top: number }) {
+  const theme = DEPARTMENT_THEME[dept];
   return (
     <div
-      className="absolute flex h-8 w-6 items-end justify-center rounded-t-full bg-[#e0b030] shadow-[0_0_10px_rgba(224,176,48,0.6)]"
-      style={{ left, top }}
-    />
-  );
-}
-
-export function OfficeScene({
-  agents,
-}: {
-  agents: AgentsResponse | null;
-}) {
-  return (
-    <div
-      className="relative h-full w-full overflow-hidden"
+      className="absolute overflow-hidden rounded-md border backdrop-blur-sm"
       style={{
-        background:
-          "linear-gradient(180deg, #1c130c 0%, #2a1c12 38%, #4a3320 39%, #3a2515 100%)",
+        left,
+        top,
+        width,
+        height,
+        borderColor: `${theme.color}55`,
+        background: `linear-gradient(180deg, ${theme.color}14, rgba(6,9,15,0.92) 42%)`,
+        boxShadow: `0 0 24px ${theme.color}22, inset 0 0 40px ${theme.color}0d`,
       }}
     >
       <div
-        className="absolute inset-x-0 top-[260px] bottom-0"
+        className="flex items-center justify-between border-b px-4 py-2"
+        style={{ borderColor: `${theme.color}33`, background: `${theme.color}12` }}
+      >
+        <div className="min-w-0">
+          <div
+            className="truncate font-pixel text-[11px] tracking-wide"
+            style={{ color: theme.color, textShadow: `0 0 8px ${theme.color}aa` }}
+          >
+            {title}
+          </div>
+          {subtitle ? (
+            <div className="mt-0.5 truncate text-[9px] text-muted-foreground/70">
+              {subtitle}
+            </div>
+          ) : null}
+        </div>
+        <span
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ background: theme.color, boxShadow: `0 0 6px ${theme.color}` }}
+        />
+      </div>
+      <div
+        className="scrollbar-thin overflow-y-auto px-4 py-3"
+        style={{ height: "calc(100% - 46px)" }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function MarketWall() {
+  const row = [...TICKERS, ...TICKERS];
+  return (
+    <div className="overflow-hidden rounded-sm border border-[#22c55e33] bg-black/40">
+      <div className="animate-ticker flex w-max gap-6 whitespace-nowrap px-3 py-1.5 font-pixel text-[10px]">
+        {row.map((t, i) => (
+          <span key={`${t.symbol}-${i}`} className="flex items-center gap-1">
+            <span className="text-[#e5e7eb]">{t.symbol}</span>
+            <span style={{ color: t.change >= 0 ? "#22c55e" : "#ef4444" }}>
+              {t.change >= 0 ? "▲" : "▼"} {Math.abs(t.change).toFixed(2)}%
+            </span>
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-10 gap-[2px] border-t border-[#22c55e22] p-1.5">
+        {TICKERS.map((t) => (
+          <div
+            key={t.symbol}
+            className="h-3 rounded-[1px]"
+            style={{
+              background: t.change >= 0 ? "#16a34a" : "#dc2626",
+              opacity: 0.35 + Math.abs(t.change) / 3,
+            }}
+            title={`${t.symbol} ${t.change >= 0 ? "+" : ""}${t.change}%`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SessionBell() {
+  return (
+    <div className="flex items-center gap-1.5 rounded-full border border-[#eab30855] bg-black/40 px-2 py-1">
+      <span className="h-1.5 w-1.5 rounded-full bg-[#22c55e] animate-pulse" />
+      <span className="font-pixel text-[8px] tracking-wide text-[#fde68a]">
+        SESSION ACTIVE
+      </span>
+    </div>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  color,
+  small,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  small?: boolean;
+}) {
+  return (
+    <div
+      className="min-w-0 rounded-sm border bg-black/40 px-2 py-1.5"
+      style={{ borderColor: `${color}44` }}
+    >
+      <div
+        className={`truncate font-pixel ${small ? "text-[9px]" : "text-sm"}`}
+        style={{ color, textShadow: `0 0 6px ${color}88` }}
+      >
+        {value}
+      </div>
+      <div className="truncate text-[8px] uppercase tracking-wide text-muted-foreground/70">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function IdeMock() {
+  return (
+    <div className="h-16 w-28 shrink-0 overflow-hidden rounded-sm border border-[#3b82f655] bg-[#0a0e16]">
+      <div className="flex items-center gap-1 border-b border-[#3b82f633] bg-[#111827] px-1.5 py-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#ef4444]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-[#eab308]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
+      </div>
+      <div className="flex flex-col gap-1 px-1.5 py-1.5">
+        {[70, 45, 60, 30].map((w, i) => (
+          <div
+            key={i}
+            className="h-1 rounded-full bg-[#3b82f6]/50"
+            style={{ width: `${w}%` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TerminalMock() {
+  return (
+    <div className="h-16 w-28 shrink-0 overflow-hidden rounded-sm border border-[#3b82f655] bg-black/60 px-1.5 py-1.5 font-mono text-[8px] text-[#4ade80]">
+      <div>$ npm run build</div>
+      <div className="text-[#93c5fd]">compiling…</div>
+      <div className="flex items-center gap-0.5">
+        <span>$</span>
+        <span className="animate-caret">_</span>
+      </div>
+    </div>
+  );
+}
+
+function BuildStatusPill({ ok }: { ok: boolean }) {
+  const color = ok ? "#22c55e" : "#ef4444";
+  return (
+    <div
+      className="flex shrink-0 flex-col items-center gap-1 rounded-sm border px-3 py-1.5"
+      style={{ borderColor: `${color}55`, background: `${color}11` }}
+    >
+      <span
+        className="h-2 w-2 rounded-full animate-pulse"
+        style={{ background: color, boxShadow: `0 0 6px ${color}` }}
+      />
+      <span className="whitespace-nowrap font-pixel text-[8px]" style={{ color }}>
+        {ok ? "BUILD OK" : "BUILD ISSUE"}
+      </span>
+    </div>
+  );
+}
+
+function ServerRack({ racks = 3 }: { racks?: number }) {
+  return (
+    <div className="flex gap-2">
+      {Array.from({ length: racks }).map((_, r) => (
+        <div
+          key={r}
+          className="flex w-10 flex-col gap-1 rounded-sm border border-[#f9731655] bg-[#0a0e16] p-1.5"
+        >
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between rounded-[1px] bg-black/60 px-1 py-0.5"
+            >
+              <span className="h-1 w-3 rounded-full bg-[#f97316]/30" />
+              <span
+                className="animate-led h-1.5 w-1.5 rounded-full bg-[#22c55e]"
+                style={{ animationDelay: `${(r * 5 + i) * 0.15}s` }}
+              />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const FLOOR_LEFT = 340;
+const FLOOR_WIDTH = 1000;
+
+export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
+  const tradingAgents =
+    agents?.teams.find((t) => t.team === "trading")?.agents ?? [];
+  const developerAgents =
+    agents?.teams.find((t) => t.team === "developer")?.agents ?? [];
+  const otherAgents = agents?.teams.find((t) => t.team === "other")?.agents ?? [];
+  const ceo =
+    otherAgents.find((a) => a.name.trim().toLowerCase() === "ai-ceo") ?? null;
+  const executiveExtra = otherAgents.filter((a) => a !== ceo);
+
+  const allAgents = [...tradingAgents, ...developerAgents, ...otherAgents];
+  const errorCount = allAgents.filter((a) => a.status === "error").length;
+  const availableCount = allAgents.length - errorCount;
+  const devErrorCount = developerAgents.filter((a) => a.status === "error").length;
+
+  const scopeSummary =
+    agents?.scopes
+      .map((s) => `${s.scope}: ${s.readable ? s.count : "n/a"}`)
+      .join("  ·  ") || "n/a";
+
+  return (
+    <div
+      className="relative h-full w-full"
+      style={{
+        background:
+          "radial-gradient(ellipse at 50% 0%, #0d1420 0%, #060a12 55%, #030509 100%)",
+      }}
+    >
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.06]"
         style={{
-          background:
-            "repeating-linear-gradient(90deg, #4a3320 0px, #4a3320 38px, #432d1c 38px, #432d1c 76px)",
+          backgroundImage:
+            "linear-gradient(#7dd3fc 1px, transparent 1px), linear-gradient(90deg, #7dd3fc 1px, transparent 1px)",
+          backgroundSize: "40px 40px",
         }}
       />
 
-      <Window />
-      <NeonSign />
-      <StudioSign />
+      {/* 1. EXECUTIVE COMMAND CENTER */}
+      <FloorPanel
+        dept="executive"
+        left={FLOOR_LEFT}
+        top={20}
+        width={FLOOR_WIDTH}
+        height={230}
+        title="EXECUTIVE COMMAND CENTER"
+        subtitle="AI CEO / Coordinator — assigns work, merges results, approves output"
+      >
+        <div className="flex gap-4">
+          <div className="flex shrink-0 flex-col items-center gap-2">
+            {ceo ? (
+              <AgentAvatar agent={ceo} />
+            ) : (
+              <div className="flex h-[168px] w-[128px] items-center justify-center rounded border border-dashed border-[#eab30855] px-2 text-center text-[9px] text-muted-foreground/60">
+                ai-ceo agent file not found
+              </div>
+            )}
+            <SessionBell />
+          </div>
+          <div className="grid flex-1 grid-cols-4 gap-2 self-start">
+            <StatTile label="Total Agents" value={String(allAgents.length)} color="#eab308" />
+            <StatTile label="Trading Desk" value={String(tradingAgents.length)} color="#22c55e" />
+            <StatTile label="Developer Desk" value={String(developerAgents.length)} color="#3b82f6" />
+            <StatTile
+              label="Errors"
+              value={String(errorCount)}
+              color={errorCount ? "#ef4444" : "#22c55e"}
+            />
+          </div>
+        </div>
+        {executiveExtra.length > 0 ? (
+          <div className="mt-3 border-t border-[#eab30822] pt-2">
+            <div className="mb-1 font-pixel text-[9px] uppercase tracking-wide text-[#fde68a]/80">
+              Executive Staff
+            </div>
+            <TeamGrid agents={executiveExtra} columns={6} emptyLabel="" />
+          </div>
+        ) : null}
+      </FloorPanel>
 
-      <Bookshelf left={880} top={230} />
-      <Bookshelf left={1010} top={230} />
-      <Bookshelf left={40} top={220} />
+      {/* 2. TRADING FLOOR — largest area */}
+      <FloorPanel
+        dept="trading"
+        left={FLOOR_LEFT}
+        top={270}
+        width={FLOOR_WIDTH}
+        height={560}
+        title="TRADING FLOOR"
+        subtitle="Quant, research, portfolio & risk desks"
+      >
+        <MarketWall />
+        <div className="mt-3">
+          <TeamGrid agents={tradingAgents} columns={6} emptyLabel="No trading agents installed" />
+        </div>
+      </FloorPanel>
 
-      <Plant left={640} top={190} />
-      <Plant left={1170} top={280} />
-      <Plant left={1300} top={520} />
+      {/* 3. DEVELOPER FLOOR */}
+      <FloorPanel
+        dept="developer"
+        left={FLOOR_LEFT}
+        top={850}
+        width={FLOOR_WIDTH}
+        height={430}
+        title="DEVELOPER FLOOR"
+        subtitle="Engineering, QA, security & platform desks"
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <IdeMock />
+          <TerminalMock />
+          <BuildStatusPill ok={devErrorCount === 0} />
+        </div>
+        <div className="mt-3">
+          <TeamGrid agents={developerAgents} columns={6} emptyLabel="No developer agents installed" />
+        </div>
+      </FloorPanel>
 
-      <WaterCooler left={780} top={210} />
-      <Trophy left={1120} top={330} />
+      {/* 4. OPERATIONS CENTER — mission control, existing data only */}
+      <FloorPanel
+        dept="operations"
+        left={FLOOR_LEFT}
+        top={1300}
+        width={FLOOR_WIDTH}
+        height={240}
+        title="OPERATIONS CENTER"
+        subtitle="Mission control — live agent roster health"
+      >
+        <div className="grid grid-cols-4 gap-2">
+          <StatTile label="Online" value={`${availableCount}/${allAgents.length}`} color="#a855f7" />
+          <StatTile
+            label="Errors Detected"
+            value={String(errorCount)}
+            color={errorCount ? "#ef4444" : "#a855f7"}
+          />
+          <StatTile label="Data Source" value={agents?.source ?? "n/a"} color="#a855f7" />
+          <StatTile label="Scopes" value={scopeSummary} small color="#a855f7" />
+        </div>
+        <div className="mt-3 text-[9px] text-muted-foreground/60">
+          Last sync: {agents ? new Date(agents.generatedAt).toLocaleString() : "—"}
+        </div>
+      </FloorPanel>
 
-      <Desk left={80} top={420} monitors={2} />
-      <Desk left={320} top={460} monitors={1} />
-      <Desk left={480} top={460} monitors={1} />
-      <Desk left={1020} top={560} monitors={1} />
-
-      <OfficeWorkers agents={agents} />
+      {/* 5. INFRASTRUCTURE ROOM — small glass server room */}
+      <FloorPanel
+        dept="infrastructure"
+        left={FLOOR_LEFT}
+        top={1560}
+        width={FLOOR_WIDTH}
+        height={170}
+        title="INFRASTRUCTURE ROOM"
+        subtitle="Server & AI cluster"
+      >
+        <div className="flex items-center gap-6">
+          <ServerRack racks={3} />
+          <div className="flex flex-col gap-2 text-[9px] text-muted-foreground/70">
+            <div className="flex items-center gap-1.5">
+              <span className="animate-led h-1.5 w-1.5 rounded-full bg-[#f97316]" />
+              DB CLUSTER — nominal
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="animate-led h-1.5 w-1.5 rounded-full bg-[#f97316]"
+                style={{ animationDelay: "0.3s" }}
+              />
+              AI CLUSTER — nominal
+            </div>
+          </div>
+        </div>
+      </FloorPanel>
     </div>
   );
 }

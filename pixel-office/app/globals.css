@@ -45,4 +45,61 @@ body {
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
+
+  @keyframes ticker-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  .animate-ticker {
+    animation: ticker-scroll 26s linear infinite;
+  }
+
+  @keyframes monitor-flicker {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    92% {
+      opacity: 1;
+    }
+    93% {
+      opacity: 0.82;
+    }
+    94% {
+      opacity: 1;
+    }
+  }
+  .animate-monitor-flicker {
+    animation: monitor-flicker 6.5s ease-in-out infinite;
+  }
+
+  @keyframes led-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.2;
+    }
+  }
+  .animate-led {
+    animation: led-blink 1.6s steps(2, end) infinite;
+  }
+
+  @keyframes caret-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+  .animate-caret {
+    animation: caret-blink 1s steps(2, end) infinite;
+  }
 }
