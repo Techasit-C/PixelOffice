@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { OfficeScene } from "@/components/pixel-office/OfficeScene";
 import { ControlBar } from "@/components/pixel-office/ControlBar";
+import { Drawer } from "@/components/ui/Drawer";
+import { AgentCharacterPanel } from "@/components/pixel-office/AgentCharacterPanel";
+import { OFFICE_CHARACTERS } from "@/components/pixel-office/office-characters";
+import { HOTSPOT_META, type HotspotId } from "@/components/pixel-office/office-hotspots";
 import { WidgetWindow } from "@/components/widgets/WidgetWindow";
 import { AffiliateWidget } from "@/components/widgets/AffiliateWidget";
 import { CompanyStatusWidget } from "@/components/widgets/CompanyStatusWidget";
@@ -37,6 +42,26 @@ import {
 import type { TVAlert } from "@/lib/tradingview-alerts";
 import type { AgentsResponse } from "@/types/agent";
 
+// Three.js/R3F touch WebGL + `document` at render time, so this must never be
+// part of the server-rendered tree — ssr:false is required (and only legal
+// from a Client Component, which this file already is). This is the
+// interactive 3D office (office_room_complete.glb + mini-character agents +
+// hotspots) — it lives on this page, not Mission Control.
+const PixelOffice3DScene = dynamic(
+  () =>
+    import("@/components/pixel-office/PixelOffice3DScene").then(
+      (m) => m.PixelOffice3DScene,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[420px] items-center justify-center text-[11px] text-muted-foreground sm:h-[520px]">
+        กำลังโหลดฉาก 3D…
+      </div>
+    ),
+  },
+);
+
 // The office scene now stacks a lobby strip + 5 cozy zone cards down the
 // center band (x 340-1340, y 20-2024) — see OfficeScene.tsx. The
 // bottom-center widgets (trading/tvChart/tvSignals/teamChat) are pushed
@@ -56,6 +81,7 @@ const DEFAULT_LAYOUT: LayoutMap = {
   teamChat: { x: 900, y: 2350, minimized: false, closed: false },
   lofi: { x: 1360, y: 950, minimized: false, closed: false },
   tradingSignals: { x: 20, y: 950, minimized: false, closed: false },
+  office3d: { x: 530, y: 2700, minimized: false, closed: false },
 };
 
 const WIDGET_META: Record<
@@ -78,7 +104,37 @@ const WIDGET_META: Record<
     width: 320,
     accent: "#22c55e",
   },
+  office3d: { title: "3D OFFICE", width: 640, accent: "#a78bfa" },
 };
+
+/** One data-source health line for the 3D office's "System Health" drawer. */
+function HealthRow({
+  label,
+  ok,
+  detail,
+}: {
+  label: string;
+  ok: boolean;
+  detail: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-t border-border/40 py-1.5 text-xs first:border-t-0">
+      <span className="flex items-center gap-2">
+        <span
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{
+            backgroundColor: ok ? "#22c55e" : "#f2c14e",
+            boxShadow: ok
+              ? "0 0 6px 1px rgba(34,197,94,0.55)"
+              : "0 0 6px 1px rgba(242,193,78,0.55)",
+          }}
+        />
+        <span className="text-muted-foreground">{label}</span>
+      </span>
+      <span className="shrink-0 text-[10px] text-muted-foreground/70">{detail}</span>
+    </div>
+  );
+}
 
 // Map an auth-gated read HTTP status to a degraded-placeholder reason for the
 // PUBLIC root page. 401 = logged-out visitor (this route is intentionally public,
@@ -116,6 +172,11 @@ export default function PixelOfficePageClient() {
   const [tvGate, setTvGate] = useState<WidgetGateReason | null>(null);
   const [signals, setSignals] = useState<TradingSignal[]>([]);
   const [signalsGate, setSignalsGate] = useState<WidgetGateReason | null>(null);
+
+  // Which 3D-office panel is open (null = none). A hotspot and a character
+  // panel are mutually exclusive and both closed by the same Drawer.
+  const [activeHotspot, setActiveHotspot] = useState<HotspotId | null>(null);
+  const [activeCharacterId, setActiveCharacterId] = useState<string | null>(null);
 
   // Grid Bot / V2 Trading: MEXC has no public API for its native grid bots
   // (UI-only feature), so these stay mock — just tick gently to feel alive.
@@ -330,6 +391,17 @@ export default function PixelOfficePageClient() {
     [wm.layout],
   );
 
+  // Health flags for the 3D office's "System Health" hotspot drawer — reuses
+  // the exact same state this page already polls, no new fetches.
+  const cryptoLive = quotesSource === "coingecko";
+  const affiliateLive = affiliate.source === "live";
+  const holdingsLive = companyStatus.holdingsSource === "live";
+  const agentErrorCount = useMemo(
+    () => (agents?.teams ?? []).flatMap((t) => t.agents).filter((a) => a.status === "error").length,
+    [agents],
+  );
+  const activeCharacter = OFFICE_CHARACTERS.find((c) => c.id === activeCharacterId) ?? null;
+
   function renderContent(id: string) {
     switch (id) {
       case "affiliate":
@@ -380,6 +452,13 @@ export default function PixelOfficePageClient() {
         return <TeamChatWidget entries={chat} onSend={handleSend} />;
       case "lofi":
         return <LofiWidget />;
+      case "office3d":
+        return (
+          <PixelOffice3DScene
+            onHotspotSelect={setActiveHotspot}
+            onCharacterSelect={setActiveCharacterId}
+          />
+        );
       default:
         return null;
     }
@@ -387,7 +466,7 @@ export default function PixelOfficePageClient() {
 
   return (
     <div className="relative h-full w-full overflow-auto bg-black">
-      <div className="relative" style={{ width: 1700, height: 2800 }}>
+      <div className="relative" style={{ width: 1700, height: 3350 }}>
         <OfficeScene agents={agents} />
 
         {Object.keys(DEFAULT_LAYOUT).map((id) => {
@@ -419,6 +498,97 @@ export default function PixelOfficePageClient() {
         closedWidgets={closedWidgets}
         onReopen={wm.openWindow}
       />
+
+      {/* 3D-office panel drawer — opened by clicking a character/hotspot in
+          the 3D scene (or its keyboard-accessible fallback buttons). Every
+          branch reuses state already polled above; nothing here fetches
+          anything new. */}
+      <Drawer
+        open={activeHotspot !== null || activeCharacterId !== null}
+        title={
+          activeCharacter
+            ? activeCharacter.roleLabel
+            : activeHotspot
+              ? HOTSPOT_META[activeHotspot].title
+              : ""
+        }
+        accent={
+          activeHotspot
+            ? HOTSPOT_META[activeHotspot].accent
+            : "#a78bfa"
+        }
+        onClose={() => {
+          setActiveHotspot(null);
+          setActiveCharacterId(null);
+        }}
+      >
+        {activeCharacter ? (
+          <AgentCharacterPanel
+            character={activeCharacter}
+            agents={agents}
+            loading={agentsLoading}
+            error={agentsError}
+          />
+        ) : null}
+
+        {activeHotspot === "systemHealth" ? (
+          <div>
+            <HealthRow
+              label="Crypto prices"
+              ok={cryptoLive}
+              detail={cryptoLive ? "live" : "mock"}
+            />
+            <HealthRow
+              label="Affiliate feed"
+              ok={affiliateLive}
+              detail={affiliateLive ? "live" : "mock"}
+            />
+            <HealthRow
+              label="Company holdings"
+              ok={holdingsLive}
+              detail={holdingsLive ? "live" : "mock"}
+            />
+            <HealthRow
+              label="AI agents"
+              ok={!agentsError && agentErrorCount === 0}
+              detail={
+                agentsError
+                  ? "error"
+                  : agentErrorCount > 0
+                    ? `${agentErrorCount} error`
+                    : "ok"
+              }
+            />
+            <div className="mt-2 text-[9px] text-muted-foreground/60">
+              * API latency, cache hit-rate, and rate-limit budget aren&apos;t wired
+              to a real telemetry source yet — this panel only reflects the
+              data-source flags above.
+            </div>
+          </div>
+        ) : null}
+
+        {activeHotspot === "trading" ? (
+          <div className="space-y-3">
+            <CryptoPricesWidget quotes={quotes} source={quotesSource} />
+            <div className="text-[10px] text-muted-foreground">
+              Grid Bot and V2 Trading (elsewhere on this page) are UI-only mocks —
+              MEXC has no public API for them yet.
+            </div>
+          </div>
+        ) : null}
+
+        {activeHotspot === "strategy" ? (
+          <div className="text-[11px] text-muted-foreground">
+            ยังไม่มี execution log — ไม่มีแหล่งข้อมูลงานที่รันจริง (no execution log yet)
+          </div>
+        ) : null}
+
+        {activeHotspot === "reports" ? (
+          <div className="text-[11px] text-muted-foreground">
+            Reports &amp; docs export isn&apos;t wired to a backend yet — coming soon.
+          </div>
+        ) : null}
+      </Drawer>
     </div>
   );
 }

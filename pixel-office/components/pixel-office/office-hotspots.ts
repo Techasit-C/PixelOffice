@@ -1,11 +1,16 @@
 // Clickable-zone config for office_room_complete.glb. Coordinates are the
 // real per-cluster bounding boxes read out of the GLB's node/accessor data
-// (see the model's node names: robot_desk_*, server_rack_*, etc.) — every
+// (see the model's node names: server_rack_*, monitor_main_*, etc.) — every
 // node in this model is a flat scene root with no parent transform, so a
 // mesh's accessor min/max IS its world-space AABB. This file is the single
 // source of truth for "what's clickable and what it means"; it never
 // touches the GLB itself.
-export type HotspotId = "agents" | "systemHealth" | "trading" | "strategy" | "reports";
+//
+// The former robot_desk_*/floor_bot_* "AI agent" hotspots have been removed:
+// the character models in office-characters.ts now occupy that role — each
+// is individually clickable (see OfficeCharacter.tsx) and opens a per-agent
+// panel instead of one generic roster hotspot.
+export type HotspotId = "systemHealth" | "trading" | "strategy" | "reports";
 
 export interface OfficeHotspotDef {
   /** Shared across every physical instance that maps to the same panel. */
@@ -20,20 +25,6 @@ export interface OfficeHotspotDef {
 }
 
 export const OFFICE_HOTSPOTS: OfficeHotspotDef[] = [
-  {
-    id: "agents",
-    key: "robot-desk",
-    label: "AI Agent Status",
-    center: [-1.75, 0.98, 2.02],
-    size: [0.8, 0.45, 1.06],
-  },
-  {
-    id: "agents",
-    key: "floor-bot",
-    label: "AI Agent Status",
-    center: [1.0, -2.27, 0.67],
-    size: [0.8, 0.45, 1.06],
-  },
   {
     id: "systemHealth",
     key: "server-rack",
@@ -93,7 +84,6 @@ export const OFFICE_HOTSPOTS: OfficeHotspotDef[] = [
 ];
 
 export const HOTSPOT_META: Record<HotspotId, { title: string; accent: string }> = {
-  agents: { title: "AI Agent Status", accent: "#a78bfa" },
   systemHealth: { title: "System Health", accent: "#22c55e" },
   trading: { title: "Trading Dashboard", accent: "#2962ff" },
   strategy: { title: "Strategy & Tasks", accent: "#eab308" },
@@ -101,4 +91,4 @@ export const HOTSPOT_META: Record<HotspotId, { title: string; accent: string }> 
 };
 
 /** Unique logical destinations, in a stable order — drives the keyboard-accessible button list. */
-export const HOTSPOT_IDS: HotspotId[] = ["agents", "systemHealth", "trading", "strategy", "reports"];
+export const HOTSPOT_IDS: HotspotId[] = ["systemHealth", "trading", "strategy", "reports"];
