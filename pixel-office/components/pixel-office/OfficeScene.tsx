@@ -1,8 +1,22 @@
 import type { ReactNode } from "react";
+import {
+  Coffee,
+  Diamond,
+  DoorOpen,
+  Presentation,
+  Sprout,
+  type LucideIcon,
+} from "lucide-react";
 import type { AgentsResponse } from "@/types/agent";
 import { AgentAvatar } from "./AgentAvatar";
 import { TeamGrid } from "./OfficeWorkers";
-import { DEPARTMENT_THEME, type Department } from "./department-theme";
+import { WorldClocks } from "./WorldClocks";
+import {
+  DEPARTMENT_THEME,
+  glassBackground,
+  glowShadow,
+  type Department,
+} from "./department-theme";
 
 // Fixed fake tickers/heatmap for the Bloomberg-style market wall. Presentation
 // only — this component never receives a live price feed, so these numbers
@@ -49,12 +63,20 @@ function FloorPanel({
         width,
         height,
         borderColor: `${theme.color}55`,
-        background: `linear-gradient(180deg, ${theme.color}14, rgba(6,9,15,0.92) 42%)`,
-        boxShadow: `0 0 24px ${theme.color}22, inset 0 0 40px ${theme.color}0d`,
+        background: glassBackground(theme.color),
+        boxShadow: glowShadow(theme.color),
       }}
     >
+      {/* premium glass sheen — static width, slow drift, never affects layout */}
       <div
-        className="flex items-center justify-between border-b px-4 py-2"
+        className="animate-sheen pointer-events-none absolute inset-y-0 -left-1/4 w-1/2 opacity-[0.05]"
+        style={{
+          background:
+            "linear-gradient(115deg, transparent 20%, #ffffff 50%, transparent 80%)",
+        }}
+      />
+      <div
+        className="relative flex items-center justify-between border-b px-4 py-2"
         style={{ borderColor: `${theme.color}33`, background: `${theme.color}12` }}
       >
         <div className="min-w-0">
@@ -76,11 +98,42 @@ function FloorPanel({
         />
       </div>
       <div
-        className="scrollbar-thin overflow-y-auto px-4 py-3"
+        className="scrollbar-thin relative overflow-y-auto px-4 py-3"
         style={{ height: "calc(100% - 46px)" }}
       >
         {children}
       </div>
+    </div>
+  );
+}
+
+function AmenityPill({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <span className="flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[8px] uppercase tracking-wide text-muted-foreground/70">
+      <Icon className="h-2.5 w-2.5" /> {label}
+    </span>
+  );
+}
+
+/** Reception hint, signage, and amenity tags — the "lobby" above the floors. */
+function LobbyStrip({ left, top, width, height }: { left: number; top: number; width: number; height: number }) {
+  return (
+    <div
+      className="absolute flex items-center justify-between gap-3 overflow-hidden rounded-md border border-white/10 bg-black/50 px-4 backdrop-blur-sm"
+      style={{ left, top, width, height }}
+    >
+      <div className="flex shrink-0 items-center gap-2">
+        <Diamond className="h-3.5 w-3.5 text-[#eab308]" strokeWidth={2.5} />
+        <span className="whitespace-nowrap font-pixel text-[11px] tracking-wide text-[#f4f4f5]">
+          AXIOM CAPITAL <span className="text-muted-foreground/50">· AI OPS</span>
+        </span>
+      </div>
+      <div className="hidden flex-wrap items-center gap-2 md:flex">
+        <AmenityPill icon={DoorOpen} label="Reception" />
+        <AmenityPill icon={Presentation} label="Conference" />
+        <AmenityPill icon={Coffee} label="Lounge" />
+      </div>
+      <WorldClocks />
     </div>
   );
 }
@@ -156,6 +209,26 @@ function StatTile({
   );
 }
 
+/** Decorative, non-numeric mini release/QA pulse for the Operations wall. */
+function MissionPulseChart({ color }: { color: string }) {
+  return (
+    <div className="relative h-full min-h-[44px] w-full overflow-hidden rounded-sm border bg-black/40" style={{ borderColor: `${color}44` }}>
+      <svg viewBox="0 0 100 30" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
+        <polyline
+          points="0,22 10,18 20,24 30,12 40,17 50,8 60,15 70,6 80,13 90,9 100,14"
+          fill="none"
+          stroke={color}
+          strokeWidth={1.6}
+          className="animate-chart-scan"
+        />
+      </svg>
+      <span className="absolute bottom-1 left-1.5 text-[7px] uppercase tracking-wide text-muted-foreground/50">
+        mission pulse (decorative)
+      </span>
+    </div>
+  );
+}
+
 function IdeMock() {
   return (
     <div className="h-16 w-28 shrink-0 overflow-hidden rounded-sm border border-[#3b82f655] bg-[#0a0e16]">
@@ -208,9 +281,46 @@ function BuildStatusPill({ ok }: { ok: boolean }) {
   );
 }
 
+function CoffeeCorner() {
+  return (
+    <div className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-sm border border-[#3b82f655] bg-black/40 px-3 py-1.5">
+      <Coffee className="h-3.5 w-3.5 text-[#93c5fd]" />
+      <span className="whitespace-nowrap font-pixel text-[8px] text-[#93c5fd]">
+        BREAK AREA
+      </span>
+    </div>
+  );
+}
+
+/** Server rack column with blinking LEDs; racks are visually linked by a
+ * data-link line with traveling pulse dots — decorative, no real telemetry. */
 function ServerRack({ racks = 3 }: { racks?: number }) {
   return (
-    <div className="flex gap-2">
+    <div className="relative flex gap-2">
+      <svg
+        className="pointer-events-none absolute -top-3 left-0 h-3 w-full"
+        viewBox="0 0 100 12"
+        preserveAspectRatio="none"
+      >
+        <line x1="8" y1="6" x2="92" y2="6" stroke="#f9731655" strokeWidth={1} />
+        <circle cx="20" cy="6" r="1.6" fill="#f97316" className="animate-node-pulse" />
+        <circle
+          cx="50"
+          cy="6"
+          r="1.6"
+          fill="#f97316"
+          className="animate-node-pulse"
+          style={{ animationDelay: "0.5s" }}
+        />
+        <circle
+          cx="80"
+          cy="6"
+          r="1.6"
+          fill="#f97316"
+          className="animate-node-pulse"
+          style={{ animationDelay: "1s" }}
+        />
+      </svg>
       {Array.from({ length: racks }).map((_, r) => (
         <div
           key={r}
@@ -236,6 +346,18 @@ function ServerRack({ racks = 3 }: { racks?: number }) {
 
 const FLOOR_LEFT = 340;
 const FLOOR_WIDTH = 1000;
+const LOBBY_TOP = 20;
+const LOBBY_HEIGHT = 54;
+const EXEC_TOP = 94;
+const EXEC_HEIGHT = 230;
+const TRADING_TOP = 344;
+const TRADING_HEIGHT = 570;
+const DEV_TOP = 934;
+const DEV_HEIGHT = 430;
+const OPS_TOP = 1384;
+const OPS_HEIGHT = 250;
+const INFRA_TOP = 1654;
+const INFRA_HEIGHT = 200;
 
 export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
   const tradingAgents =
@@ -274,13 +396,16 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
         }}
       />
 
-      {/* 1. EXECUTIVE COMMAND CENTER */}
+      {/* 0. LOBBY — signage, reception/conference/lounge hints, world clocks */}
+      <LobbyStrip left={FLOOR_LEFT} top={LOBBY_TOP} width={FLOOR_WIDTH} height={LOBBY_HEIGHT} />
+
+      {/* 1. EXECUTIVE COMMAND CENTER — glass office, gold */}
       <FloorPanel
         dept="executive"
         left={FLOOR_LEFT}
-        top={20}
+        top={EXEC_TOP}
         width={FLOOR_WIDTH}
-        height={230}
+        height={EXEC_HEIGHT}
         title="EXECUTIVE COMMAND CENTER"
         subtitle="AI CEO / Coordinator — assigns work, merges results, approves output"
       >
@@ -289,7 +414,7 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
             {ceo ? (
               <AgentAvatar agent={ceo} />
             ) : (
-              <div className="flex h-[168px] w-[128px] items-center justify-center rounded border border-dashed border-[#eab30855] px-2 text-center text-[9px] text-muted-foreground/60">
+              <div className="flex h-[180px] w-[128px] items-center justify-center rounded border border-dashed border-[#eab30855] px-2 text-center text-[9px] text-muted-foreground/60">
                 ai-ceo agent file not found
               </div>
             )}
@@ -316,29 +441,34 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
         ) : null}
       </FloorPanel>
 
-      {/* 2. TRADING FLOOR — largest area */}
+      {/* 2. TRADING FLOOR — largest area, green */}
       <FloorPanel
         dept="trading"
         left={FLOOR_LEFT}
-        top={270}
+        top={TRADING_TOP}
         width={FLOOR_WIDTH}
-        height={560}
+        height={TRADING_HEIGHT}
         title="TRADING FLOOR"
         subtitle="Quant, research, portfolio & risk desks"
       >
-        <MarketWall />
+        <div className="flex items-start gap-2">
+          <div className="flex-1">
+            <MarketWall />
+          </div>
+          <Sprout className="mt-1 h-5 w-5 shrink-0 text-[#22c55e]/40" />
+        </div>
         <div className="mt-3">
           <TeamGrid agents={tradingAgents} columns={6} emptyLabel="No trading agents installed" />
         </div>
       </FloorPanel>
 
-      {/* 3. DEVELOPER FLOOR */}
+      {/* 3. DEVELOPER FLOOR — blue/cyan */}
       <FloorPanel
         dept="developer"
         left={FLOOR_LEFT}
-        top={850}
+        top={DEV_TOP}
         width={FLOOR_WIDTH}
-        height={430}
+        height={DEV_HEIGHT}
         title="DEVELOPER FLOOR"
         subtitle="Engineering, QA, security & platform desks"
       >
@@ -346,23 +476,24 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
           <IdeMock />
           <TerminalMock />
           <BuildStatusPill ok={devErrorCount === 0} />
+          <CoffeeCorner />
         </div>
         <div className="mt-3">
           <TeamGrid agents={developerAgents} columns={6} emptyLabel="No developer agents installed" />
         </div>
       </FloorPanel>
 
-      {/* 4. OPERATIONS CENTER — mission control, existing data only */}
+      {/* 4. OPERATIONS CENTER — mission control, purple, existing data only */}
       <FloorPanel
         dept="operations"
         left={FLOOR_LEFT}
-        top={1300}
+        top={OPS_TOP}
         width={FLOOR_WIDTH}
-        height={240}
+        height={OPS_HEIGHT}
         title="OPERATIONS CENTER"
         subtitle="Mission control — live agent roster health"
       >
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           <StatTile label="Online" value={`${availableCount}/${allAgents.length}`} color="#a855f7" />
           <StatTile
             label="Errors Detected"
@@ -371,23 +502,24 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
           />
           <StatTile label="Data Source" value={agents?.source ?? "n/a"} color="#a855f7" />
           <StatTile label="Scopes" value={scopeSummary} small color="#a855f7" />
+          <MissionPulseChart color="#a855f7" />
         </div>
         <div className="mt-3 text-[9px] text-muted-foreground/60">
           Last sync: {agents ? new Date(agents.generatedAt).toLocaleString() : "—"}
         </div>
       </FloorPanel>
 
-      {/* 5. INFRASTRUCTURE ROOM — small glass server room */}
+      {/* 5. INFRASTRUCTURE ROOM — small glass server room, orange */}
       <FloorPanel
         dept="infrastructure"
         left={FLOOR_LEFT}
-        top={1560}
+        top={INFRA_TOP}
         width={FLOOR_WIDTH}
-        height={170}
+        height={INFRA_HEIGHT}
         title="INFRASTRUCTURE ROOM"
         subtitle="Server & AI cluster"
       >
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-8 pt-2">
           <ServerRack racks={3} />
           <div className="flex flex-col gap-2 text-[9px] text-muted-foreground/70">
             <div className="flex items-center gap-1.5">

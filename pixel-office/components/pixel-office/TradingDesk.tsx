@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { DeskKind } from "./role-visuals";
 
 const MONITOR_W = 30;
 const GAP = 4;
@@ -7,10 +8,142 @@ function deskWidth(monitors: number): number {
   return monitors * MONITOR_W + (monitors - 1) * GAP;
 }
 
+/** Small, purely decorative motion motif for a desk's secondary screens. */
+function ScreenMotif({ kind, glow }: { kind: DeskKind; glow: string }) {
+  switch (kind) {
+    case "chart":
+    case "hologram":
+      return (
+        <svg viewBox="0 0 30 20" className="absolute inset-0 h-full w-full">
+          <polyline
+            points="0,16 5,10 10,13 15,6 20,9 25,3 30,7"
+            fill="none"
+            stroke={glow}
+            strokeWidth={1.4}
+            className="animate-chart-scan"
+          />
+        </svg>
+      );
+    case "radar":
+      return (
+        <div
+          className="absolute inset-[3px] overflow-hidden rounded-full border"
+          style={{ borderColor: `${glow}66` }}
+        >
+          <div
+            className="animate-spin-slow absolute inset-0"
+            style={{ background: `conic-gradient(${glow}aa, transparent 30%)` }}
+          />
+        </div>
+      );
+    case "server":
+      return (
+        <div className="absolute inset-x-1 bottom-0 top-0 flex items-end overflow-hidden">
+          <div
+            className="animate-server-pulse h-1 w-full rounded-full"
+            style={{ background: glow }}
+          />
+        </div>
+      );
+    case "code":
+      return (
+        <div className="absolute inset-1 flex flex-col justify-center gap-[2px]">
+          {[80, 55, 65, 40].map((w, i) => (
+            <div
+              key={i}
+              className="h-[2px] rounded-full"
+              style={{ width: `${w}%`, background: glow, opacity: 0.6 }}
+            />
+          ))}
+        </div>
+      );
+    case "ui":
+      return (
+        <div className="absolute inset-1 grid grid-cols-2 gap-[2px]">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-[1px]"
+              style={{ background: glow, opacity: 0.3 + (i % 2) * 0.3 }}
+            />
+          ))}
+        </div>
+      );
+    case "data":
+      return (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="h-5 w-3 rounded-full border" style={{ borderColor: glow }} />
+        </div>
+      );
+    case "checklist":
+      return (
+        <div className="absolute inset-1 flex flex-col justify-center gap-[3px]">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-[2px]">
+              <span
+                className="h-[3px] w-[3px] shrink-0 rounded-[1px]"
+                style={{ background: glow }}
+              />
+              <span
+                className="h-[2px] flex-1 rounded-full"
+                style={{ background: glow, opacity: 0.4 }}
+              />
+            </div>
+          ))}
+        </div>
+      );
+    case "neural":
+      return (
+        <div
+          className="animate-node-pulse absolute inset-0"
+          style={{ background: `radial-gradient(circle, ${glow}66, transparent 70%)` }}
+        />
+      );
+    case "nodes":
+      return (
+        <svg viewBox="0 0 30 20" className="absolute inset-0 h-full w-full">
+          <line x1="6" y1="6" x2="15" y2="15" stroke={glow} strokeWidth={0.6} opacity={0.5} />
+          <line x1="24" y1="6" x2="15" y2="15" stroke={glow} strokeWidth={0.6} opacity={0.5} />
+          <circle cx="6" cy="6" r="2" fill={glow} className="animate-node-pulse" />
+          <circle
+            cx="24"
+            cy="6"
+            r="2"
+            fill={glow}
+            className="animate-node-pulse"
+            style={{ animationDelay: "0.6s" }}
+          />
+          <circle
+            cx="15"
+            cy="15"
+            r="2"
+            fill={glow}
+            className="animate-node-pulse"
+            style={{ animationDelay: "1.2s" }}
+          />
+        </svg>
+      );
+    case "board":
+    case "doc":
+    default:
+      return (
+        <div className="absolute inset-1 flex flex-col justify-center gap-[2px]">
+          {[70, 45, 60].map((w, i) => (
+            <div
+              key={i}
+              className="h-[2px] rounded-full"
+              style={{ width: `${w}%`, background: glow, opacity: 0.5 }}
+            />
+          ))}
+        </div>
+      );
+  }
+}
+
 /**
  * A Bloomberg-style multi-monitor desk. The first screen shows the agent's
- * role glyph; any additional screens show a small decorative bar-chart glow.
- * Pure presentation — no live data is implied by the chart shape.
+ * role glyph; any additional screens play a small role-appropriate motion
+ * motif. Pure presentation — no live data is implied by any shape or motion.
  */
 export function TradingDesk({
   left,
@@ -19,6 +152,7 @@ export function TradingDesk({
   accent = "#22c55e",
   Icon,
   errored = false,
+  kind = "chart",
 }: {
   left: number;
   top: number;
@@ -26,6 +160,7 @@ export function TradingDesk({
   accent?: string;
   Icon?: LucideIcon;
   errored?: boolean;
+  kind?: DeskKind;
 }) {
   const glow = errored ? "#ef4444" : accent;
   const width = deskWidth(monitors);
@@ -54,15 +189,7 @@ export function TradingDesk({
                 strokeWidth={2.25}
               />
             ) : (
-              <div className="absolute inset-x-1 bottom-1 flex items-end gap-[1px]">
-                {[3, 6, 4, 7, 5].map((h, bi) => (
-                  <div
-                    key={bi}
-                    className="w-[3px] rounded-t-[1px]"
-                    style={{ height: h, background: glow, opacity: 0.65 }}
-                  />
-                ))}
-              </div>
+              <ScreenMotif kind={kind} glow={glow} />
             )}
           </div>
         ))}

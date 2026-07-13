@@ -27,7 +27,7 @@ export function TeamGrid({
 
   return (
     <div
-      className="grid items-start justify-items-center gap-x-2 gap-y-4"
+      className="grid items-start justify-items-center gap-x-2 gap-y-5"
       style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
     >
       {agents.map((agent) => (

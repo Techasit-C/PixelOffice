@@ -87,3 +87,58 @@ export function getMonitorCount(name: string): number {
   const base = 1 + (hashString(key) % 2);
   return SENIOR_ROLES.has(key) ? Math.min(base + 1, 3) : base;
 }
+
+// What a desk's secondary screens animate — a small, purely decorative motion
+// motif per role family (never a claim about real data).
+export type DeskKind =
+  | "chart"
+  | "hologram"
+  | "radar"
+  | "code"
+  | "ui"
+  | "data"
+  | "checklist"
+  | "server"
+  | "doc"
+  | "board"
+  | "neural"
+  | "nodes";
+
+const DESK_KIND: Record<string, DeskKind> = {
+  "ai-ceo": "hologram",
+  "master-decision-agent": "hologram",
+  "cio-agent": "doc",
+  "fundamental-analyst": "doc",
+  "technical-analyst": "chart",
+  "macro-economist": "chart",
+  "crypto-research-analyst": "chart",
+  "quant-analyst": "hologram",
+  "swing-trader": "chart",
+  "dca-portfolio-agent": "doc",
+  "risk-manager-agent": "radar",
+  "news-sentiment-agent": "doc",
+  "portfolio-optimizer": "doc",
+  "investment-analyst": "chart",
+  "solution-architect": "board",
+  "frontend-developer": "ui",
+  "backend-developer": "code",
+  "database-engineer": "data",
+  "ai-integration-engineer": "nodes",
+  "devops-engineer": "server",
+  "qa-engineer": "checklist",
+  "performance-engineer": "chart",
+  "security-engineer": "radar",
+  "prompt-engineer": "neural",
+  "documentation-engineer": "doc",
+  "project-manager": "board",
+};
+
+const FALLBACK_DESK_KINDS: DeskKind[] = ["chart", "code", "data", "doc"];
+
+/** Deterministic desk-screen motif for any agent, known or custom. */
+export function getDeskKind(name: string): DeskKind {
+  const key = name.trim().toLowerCase();
+  const known = DESK_KIND[key];
+  if (known) return known;
+  return FALLBACK_DESK_KINDS[hashString(key) % FALLBACK_DESK_KINDS.length];
+}

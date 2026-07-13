@@ -102,4 +102,178 @@ body {
   .animate-caret {
     animation: caret-blink 1s steps(2, end) infinite;
   }
+
+  /* Operator avatar motion vocabulary */
+  @keyframes float-idle {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
+  }
+  .animate-float {
+    animation: float-idle 3.6s ease-in-out infinite;
+  }
+
+  @keyframes head-tilt {
+    0%,
+    100% {
+      transform: rotate(-3deg);
+    }
+    50% {
+      transform: rotate(3deg);
+    }
+  }
+  .animate-head-tilt {
+    animation: head-tilt 4.2s ease-in-out infinite;
+  }
+
+  @keyframes type-hand {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(3px);
+    }
+  }
+  .animate-type-hand {
+    animation: type-hand 0.9s ease-in-out infinite;
+  }
+
+  @keyframes visor-scan {
+    0% {
+      transform: translateX(-6px);
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 0.9;
+    }
+    100% {
+      transform: translateX(10px);
+      opacity: 0.25;
+    }
+  }
+  .animate-visor-scan {
+    animation: visor-scan 2.4s ease-in-out infinite;
+  }
+
+  @keyframes hologram-flicker {
+    0%,
+    100% {
+      opacity: 0.92;
+    }
+    45% {
+      opacity: 0.92;
+    }
+    47% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 0.95;
+    }
+    74% {
+      opacity: 0.85;
+    }
+    76% {
+      opacity: 0.55;
+    }
+    79% {
+      opacity: 0.92;
+    }
+  }
+  .animate-hologram {
+    animation: hologram-flicker 5s ease-in-out infinite;
+  }
+
+  @keyframes spin-slow {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .animate-spin-slow {
+    animation: spin-slow 7s linear infinite;
+  }
+
+  @keyframes server-pulse {
+    0% {
+      transform: translateY(6px);
+      opacity: 0;
+    }
+    25% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-14px);
+      opacity: 0;
+    }
+  }
+  .animate-server-pulse {
+    animation: server-pulse 1.8s linear infinite;
+  }
+
+  @keyframes chart-scan {
+    from {
+      stroke-dashoffset: 120;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  .animate-chart-scan {
+    stroke-dasharray: 120;
+    animation: chart-scan 3.2s linear infinite;
+  }
+
+  @keyframes node-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  .animate-node-pulse {
+    animation: node-pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes sheen-sweep {
+    0% {
+      transform: translateX(-20%);
+    }
+    100% {
+      transform: translateX(20%);
+    }
+  }
+  .animate-sheen {
+    animation: sheen-sweep 9s ease-in-out infinite alternate;
+  }
+
+  /* Respect OS-level reduced-motion: every decorative animation above (and
+     the pre-existing ticker/monitor/led/caret set) freezes on its first
+     frame instead of looping. Nothing here affects layout, only motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-ticker,
+    .animate-monitor-flicker,
+    .animate-led,
+    .animate-caret,
+    .animate-float,
+    .animate-head-tilt,
+    .animate-type-hand,
+    .animate-visor-scan,
+    .animate-hologram,
+    .animate-spin-slow,
+    .animate-server-pulse,
+    .animate-chart-scan,
+    .animate-node-pulse,
+    .animate-sheen {
+      animation: none !important;
+    }
+  }
 }
