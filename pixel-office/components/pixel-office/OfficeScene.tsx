@@ -461,6 +461,94 @@ function ServerRack({ racks = 3 }: { racks?: number }) {
   );
 }
 
+/** A framed "team vitals" board — abstract bar meters, explicitly decorative. */
+function KpiWall() {
+  const bars = [
+    { label: "Focus", pct: 82, color: "#eab308" },
+    { label: "Throughput", pct: 66, color: "#22c55e" },
+    { label: "Sync", pct: 91, color: "#3b82f6" },
+    { label: "Morale", pct: 74, color: "#a855f7" },
+  ];
+  return (
+    <div className="flex shrink-0 flex-col gap-1 rounded-md border border-[#eab30833] bg-black/25 p-2">
+      <span className="font-pixel text-[8px] uppercase tracking-wide text-[#fde68a]/80">
+        KPI Wall
+      </span>
+      <div className="flex items-end gap-2">
+        {bars.map((b) => (
+          <div key={b.label} className="flex flex-col items-center gap-0.5">
+            <div className="flex h-11 w-3 items-end overflow-hidden rounded-sm bg-black/40">
+              <div
+                className="w-full rounded-sm"
+                style={{ height: `${b.pct}%`, background: b.color, opacity: 0.8 }}
+              />
+            </div>
+            <span className="text-[7px] text-[#e5d9c3]/70">{b.label}</span>
+          </div>
+        ))}
+      </div>
+      <span className="text-[6px] uppercase tracking-wide text-muted-foreground/50">
+        decorative
+      </span>
+    </div>
+  );
+}
+
+/** A glass-walled meeting room with a table + chairs — pure decor. */
+function GlassMeetingRoom() {
+  return (
+    <div
+      className="relative flex h-[72px] w-36 shrink-0 flex-col overflow-hidden rounded-md border-2 border-[#8fd0ee]/40"
+      style={{ background: "rgba(143,208,238,0.08)" }}
+    >
+      <div className="animate-sheen pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-white/10" />
+      <span className="absolute left-1/3 top-0 h-full w-px bg-[#8fd0ee]/25" />
+      <span className="absolute left-2/3 top-0 h-full w-px bg-[#8fd0ee]/25" />
+      <span className="absolute left-1.5 top-1 font-pixel text-[7px] uppercase tracking-wide text-[#8fd0ee]/80">
+        Conference
+      </span>
+      <div className="mb-2 mt-auto flex items-center justify-center gap-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#f0c090]" />
+        <span className="h-2 w-8 rounded-full bg-[#5a4632]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-[#f0c090]" />
+      </div>
+    </div>
+  );
+}
+
+/** A warm coffee/lounge tag for the trading floor. */
+function CoffeeBar() {
+  return (
+    <div className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-sm border border-[#c9a86a55] bg-black/25 px-3 py-1.5">
+      <Coffee className="h-3.5 w-3.5 text-[#c9a86a]" />
+      <span className="whitespace-nowrap font-pixel text-[8px] text-[#c9a86a]">
+        COFFEE BAR
+      </span>
+    </div>
+  );
+}
+
+/** A labelled storage shelf of grey supply boxes for the server corner. */
+function StorageShelf() {
+  const box = ["#6b7280", "#9ca3af", "#78716c"];
+  return (
+    <div className="flex shrink-0 flex-col items-center gap-1">
+      <div className="grid grid-cols-3 grid-rows-2 gap-1 rounded-sm border-2 border-[#5a4632] bg-[#3a2c1e] p-1.5">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-4 w-5 rounded-[1px]"
+            style={{ background: box[i % box.length], opacity: 0.82 }}
+          />
+        ))}
+      </div>
+      <span className="font-pixel text-[7px] uppercase tracking-wide text-[#f97316]/60">
+        Storage
+      </span>
+    </div>
+  );
+}
+
 const FLOOR_LEFT = 340;
 const FLOOR_WIDTH = 1000;
 const LOBBY_TOP = 20;
@@ -545,6 +633,10 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
           </div>
           <TrophyShelf />
           <Bookshelf />
+          <KpiWall />
+          <GlassMeetingRoom />
+          <CityWindow wide />
+          <Plant />
         </div>
         {executiveExtra.length > 0 ? (
           <div className="mt-3 border-t border-[#eab30822] pt-2">
@@ -572,6 +664,9 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
           </div>
           <CityWindow />
           <Plant />
+          <CityWindow wide />
+          <CoffeeBar />
+          <Plant />
         </div>
         <div className="mt-3">
           <TeamGrid agents={tradingAgents} columns={6} emptyLabel="No trading agents installed" />
@@ -595,6 +690,9 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
           <CoffeeCorner />
           <NeonSign />
           <WaterCooler />
+          <Bookshelf />
+          <Plant />
+          <CityWindow />
         </div>
         <div className="mt-3">
           <TeamGrid agents={developerAgents} columns={6} emptyLabel="No developer agents installed" />
@@ -662,6 +760,9 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
             </div>
           </div>
           <Sprout className="h-5 w-5 shrink-0 text-[#22c55e]/50" />
+          <StorageShelf />
+          <ServerRack racks={2} />
+          <Plant />
         </div>
       </ZoneCard>
     </div>

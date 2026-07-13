@@ -154,6 +154,7 @@ export function TradingDesk({
   Icon,
   errored = false,
   kind = "chart",
+  className = "",
 }: {
   left: number;
   top: number;
@@ -162,12 +163,13 @@ export function TradingDesk({
   Icon?: LucideIcon;
   errored?: boolean;
   kind?: DeskKind;
+  className?: string;
 }) {
   const glow = errored ? "#ef4444" : accent;
   const width = deskWidth(monitors);
 
   return (
-    <div className="absolute" style={{ left, top }}>
+    <div className={`absolute ${className}`} style={{ left, top }}>
       <div className="flex" style={{ gap: GAP }}>
         {Array.from({ length: monitors }).map((_, i) => (
           <div
