@@ -34,6 +34,13 @@ export const INDICATOR_PERIODS = {
   swingLookback: 3,
 } as const;
 
+// --- Volatility-fallback knobs (deterministic; no live-trading params) --------
+/** ATR-multiple distance for the volatility-based stop fallback. */
+export const ATR_STOP_MULT = 1.5;
+/** Risk multiples for take-profit levels when no structural target is usable. */
+export const TP1_R_MULT = 1.5;
+export const TP2_R_MULT = 2.5;
+
 // --- Risk floors (HARD gates — reject when inputs missing) --------------------
 /** Minimum reward-to-risk. A setup below this is downgraded to WAIT. */
 export const MIN_RR = 1.5;

@@ -3,8 +3,10 @@
 // is a total function of its input array.
 import { describe, it, expect } from "vitest";
 import { buildSignalFromCandles } from "@/lib/trading-signals/engine";
+import { detectSetup, type Indicators } from "@/lib/trading-signals/setup";
+import { riskGate } from "@/lib/trading-signals/risk-gate";
 import type { Candle, CandleSeries } from "@/lib/market-data/candles";
-import { MIN_RR } from "@/lib/trading-signals/config";
+import { MIN_CONFIDENCE, MIN_RR } from "@/lib/trading-signals/config";
 import type { TradingSignal } from "@/lib/trading-signals/types";
 
 const AT = "2026-07-13T00:00:00.000Z";
@@ -95,12 +97,35 @@ describe("buildSignalFromCandles — no-trade vetoes", () => {
     assertSignalShape(sig);
   });
 
-  it("missing structural stop (monotonic rise) => WAIT with stop veto", () => {
-    const sig = buildSignalFromCandles(series(linspace(100, 180, 70)), AT);
-    expect(sig.direction).toBe("WAIT");
-    expect(sig.stopLoss).toBeNull();
-    expect(sig.reasoning.some((r) => /no structural stop-loss/i.test(r))).toBe(true);
-    assertSignalShape(sig);
+  // Unit-level: with ATR unavailable AND no valid swing level, the stop cannot be
+  // computed, so detectSetup leaves stopLoss null and the gate VETOes -> WAIT. (This
+  // must be exercised at the pure level: ≥60 real bars normally make ATR available,
+  // so the fallback would otherwise supply a stop.)
+  it("missing stop (atr null + no swing) => stopLoss null => WAIT (unit)", () => {
+    const ind: Indicators = {
+      lastClose: 120,
+      smaFast: 118,
+      smaSlow: 110,
+      emaFast: 119,
+      emaSlow: 112,
+      rsi: 60,
+      atr: null,
+      volumeAvg: 100,
+      lastVolume: 130,
+      swingHigh: null,
+      swingLow: null,
+    };
+    const setup = detectSetup(ind);
+    expect(setup).not.toBeNull();
+    expect(setup!.direction).toBe("LONG");
+    expect(setup!.stopLoss).toBeNull();
+    expect(setup!.primaryTarget).toBeNull();
+    expect(setup!.riskRewardRatio).toBeNull();
+    expect(setup!.qualityOk).toBe(false);
+    const gate = riskGate(setup);
+    expect(gate.approved).toBe(false);
+    expect(gate.direction).toBe("WAIT");
+    expect(gate.reasoning.some((r) => /no structural stop-loss/i.test(r))).toBe(true);
   });
 
   it("poor R:R (tiny reward vs large risk) => WAIT with R:R veto", () => {
@@ -154,6 +179,42 @@ describe("buildSignalFromCandles — approved setups", () => {
     // Stop above entry zone; a take-profit below it.
     expect(sig.stopLoss!).toBeGreaterThan(sig.entryZone!.high);
     expect(sig.takeProfit[0].price).toBeLessThan(sig.entryZone!.low);
+    expect(sig.invalidationCondition).toMatch(/above the stop-loss/i);
+    assertSignalShape(sig);
+  });
+
+  it("clean uptrend, no structural levels => LONG via ATR stop + R-multiple TP", () => {
+    // Monotonic rise: no swing pivots form, so both structural stop and target are
+    // absent. With ≥60 bars ATR is available, so the volatility fallback supplies a
+    // stop and TP1 at 1.5R (== MIN_RR). Should be actionable, not WAIT.
+    const sig = buildSignalFromCandles(series(linspace(100, 180, 70)), AT);
+    expect(sig.direction).toBe("LONG");
+    expect(sig.source).toBe("analysis");
+    expect(sig.entryZone).not.toBeNull();
+    expect(sig.stopLoss).not.toBeNull();
+    expect(sig.stopLoss!).toBeLessThan(sig.entryZone!.low);
+    expect(sig.takeProfit.length).toBeGreaterThanOrEqual(1);
+    expect(sig.takeProfit[0].price).toBeGreaterThan(sig.entryZone!.high);
+    expect(sig.riskRewardRatio!).toBeGreaterThanOrEqual(MIN_RR);
+    expect(sig.confidence).toBeGreaterThanOrEqual(MIN_CONFIDENCE);
+    expect(sig.reasoning.some((r) => /ATR-based stop/i.test(r))).toBe(true);
+    expect(sig.invalidationCondition).toMatch(/below the stop-loss/i);
+    assertSignalShape(sig);
+  });
+
+  it("clean downtrend, no structural levels => SHORT via ATR stop + R-multiple TP", () => {
+    // Mirror of the LONG ATR-fallback case: a monotonic decline forms no pivots.
+    const sig = buildSignalFromCandles(series(linspace(200, 120, 70)), AT);
+    expect(sig.direction).toBe("SHORT");
+    expect(sig.source).toBe("analysis");
+    expect(sig.entryZone).not.toBeNull();
+    expect(sig.stopLoss).not.toBeNull();
+    expect(sig.stopLoss!).toBeGreaterThan(sig.entryZone!.high);
+    expect(sig.takeProfit.length).toBeGreaterThanOrEqual(1);
+    expect(sig.takeProfit[0].price).toBeLessThan(sig.entryZone!.low);
+    expect(sig.riskRewardRatio!).toBeGreaterThanOrEqual(MIN_RR);
+    expect(sig.confidence).toBeGreaterThanOrEqual(MIN_CONFIDENCE);
+    expect(sig.reasoning.some((r) => /ATR-based stop/i.test(r))).toBe(true);
     expect(sig.invalidationCondition).toMatch(/above the stop-loss/i);
     assertSignalShape(sig);
   });

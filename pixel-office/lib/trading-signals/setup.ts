@@ -6,7 +6,7 @@
 // downgrades a candidate to WAIT. No I/O, no randomness, fully deterministic.
 import type { Candle } from "@/lib/market-data/candles";
 import type { PriceLevel, SignalDirection } from "./types";
-import { INDICATOR_PERIODS } from "./config";
+import { ATR_STOP_MULT, INDICATOR_PERIODS, TP1_R_MULT, TP2_R_MULT } from "./config";
 import {
   atr as calcAtr,
   closes,
@@ -158,60 +158,92 @@ export function detectSetup(ind: Indicators): RawSetup | null {
     reasoning.push("ATR unavailable — volatility-scaled stop uses a price-fraction proxy.");
   }
 
-  // --- Structural stop + target ----------------------------------------------
+  // --- Stop-loss: structure first, ATR-based fallback ------------------------
+  // Prefer a real structural level. When none exists but ATR is available, fall back
+  // to a volatility-scaled stop so a valid trend is still sizeable. When NEITHER is
+  // available, stop stays null and the gate VETOes — that WAIT path is intentional.
   let stopLoss: number | null = null;
-  let primaryTarget: number | null = null;
-  const takeProfit: PriceLevel[] = [];
 
   if (direction === "LONG") {
     if (ind.swingLow !== null && ind.swingLow < entryMid) {
       stopLoss = ind.swingLow - stopBuffer;
-      reasoning.push(`Stop below recent swing low ${ind.swingLow.toFixed(2)} (structure).`);
+      reasoning.push(`Stop below swing low ${ind.swingLow.toFixed(2)} − buffer (structural).`);
+    } else if (atr !== null && atr > 0) {
+      stopLoss = entryMid - ATR_STOP_MULT * atr;
+      reasoning.push(
+        `ATR-based stop at ${ATR_STOP_MULT}×ATR (${(ATR_STOP_MULT * atr).toFixed(2)}) below entry — no valid swing low.`,
+      );
     } else {
-      reasoning.push("No swing low below price — no structural stop; setup cannot be sized.");
-    }
-    if (ind.swingHigh !== null && ind.swingHigh > entryMid) {
-      primaryTarget = ind.swingHigh;
-      takeProfit.push({ price: ind.swingHigh, label: "Swing-high resistance" });
-    } else {
-      reasoning.push("No swing high above price — no structural target above entry.");
+      reasoning.push("No swing low below price and ATR unavailable — no stop; setup cannot be sized.");
     }
   } else {
     if (ind.swingHigh !== null && ind.swingHigh > entryMid) {
       stopLoss = ind.swingHigh + stopBuffer;
-      reasoning.push(`Stop above recent swing high ${ind.swingHigh.toFixed(2)} (structure).`);
+      reasoning.push(`Stop above swing high ${ind.swingHigh.toFixed(2)} + buffer (structural).`);
+    } else if (atr !== null && atr > 0) {
+      stopLoss = entryMid + ATR_STOP_MULT * atr;
+      reasoning.push(
+        `ATR-based stop at ${ATR_STOP_MULT}×ATR (${(ATR_STOP_MULT * atr).toFixed(2)}) above entry — no valid swing high.`,
+      );
     } else {
-      reasoning.push("No swing high above price — no structural stop; setup cannot be sized.");
-    }
-    if (ind.swingLow !== null && ind.swingLow < entryMid) {
-      primaryTarget = ind.swingLow;
-      takeProfit.push({ price: ind.swingLow, label: "Swing-low support" });
-    } else {
-      reasoning.push("No swing low below price — no structural target below entry.");
+      reasoning.push("No swing high above price and ATR unavailable — no stop; setup cannot be sized.");
     }
   }
 
-  // --- Risk:reward from structure --------------------------------------------
+  // --- Target + R:R: structure first (preserves poor-R:R WAIT), else R-multiple
+  let primaryTarget: number | null = null;
   let riskRewardRatio: number | null = null;
-  if (stopLoss !== null && primaryTarget !== null) {
+  const takeProfit: PriceLevel[] = [];
+
+  if (stopLoss !== null) {
     const risk = direction === "LONG" ? entryMid - stopLoss : stopLoss - entryMid;
-    const reward = direction === "LONG" ? primaryTarget - entryMid : entryMid - primaryTarget;
-    if (risk > 0 && reward > 0) {
-      riskRewardRatio = reward / risk;
-      // Second, extended target: a 1.618 projection of the measured move. Labelled
-      // as a projection so it is never mistaken for a structural level.
-      const ext =
+    if (risk > 0) {
+      // A structural target is the swing level in the direction of the trade, but only
+      // if it sits beyond entry (otherwise it is not a target).
+      const structTarget =
         direction === "LONG"
-          ? entryMid + reward * 1.618
-          : entryMid - reward * 1.618;
-      takeProfit.push({ price: ext, label: "1.618 measured-move extension" });
+          ? ind.swingHigh !== null && ind.swingHigh > entryMid
+            ? ind.swingHigh
+            : null
+          : ind.swingLow !== null && ind.swingLow < entryMid
+            ? ind.swingLow
+            : null;
+
+      if (structTarget !== null) {
+        // STRUCTURE-FIRST: honest R:R from the real level. This CAN be below MIN_RR —
+        // do not override it; the risk gate downgrades that case to WAIT.
+        primaryTarget = structTarget;
+        const reward = direction === "LONG" ? structTarget - entryMid : entryMid - structTarget;
+        riskRewardRatio = reward / risk;
+        takeProfit.push({
+          price: structTarget,
+          label: `TP1 · ${direction === "LONG" ? "swing-high resistance" : "swing-low support"} (structural, R:R ${riskRewardRatio.toFixed(2)})`,
+        });
+        // TP2: 1.618 measured-move projection beyond the structural target.
+        const tp2 =
+          direction === "LONG" ? entryMid + reward * 1.618 : entryMid - reward * 1.618;
+        takeProfit.push({ price: tp2, label: "TP2 · 1.618 measured-move extension" });
+        reasoning.push(
+          `Structural R:R ≈ ${riskRewardRatio.toFixed(2)} (risk ${risk.toFixed(2)} vs reward ${reward.toFixed(2)}).`,
+        );
+      } else {
+        // RISK-MULTIPLE FALLBACK: no usable structural level -> TPs at fixed R multiples.
+        primaryTarget =
+          direction === "LONG" ? entryMid + TP1_R_MULT * risk : entryMid - TP1_R_MULT * risk;
+        riskRewardRatio = TP1_R_MULT;
+        const tp2 =
+          direction === "LONG" ? entryMid + TP2_R_MULT * risk : entryMid - TP2_R_MULT * risk;
+        takeProfit.push({ price: primaryTarget, label: `TP1 · ${TP1_R_MULT}R (measured, ATR-based)` });
+        takeProfit.push({ price: tp2, label: `TP2 · ${TP2_R_MULT}R (measured, ATR-based)` });
+        reasoning.push(
+          `No usable structural target — measured TP1 at ${TP1_R_MULT}R, TP2 at ${TP2_R_MULT}R (risk ${risk.toFixed(2)}).`,
+        );
+      }
+
       if (riskRewardRatio >= 2) confidence += 10;
       else if (riskRewardRatio >= 1.5) confidence += 5;
-      reasoning.push(
-        `Structural R:R ≈ ${riskRewardRatio.toFixed(2)} (risk ${risk.toFixed(2)} vs reward ${reward.toFixed(2)}).`,
-      );
     } else {
-      reasoning.push("Degenerate risk/reward geometry (non-positive risk or reward).");
+      reasoning.push("Degenerate risk (non-positive) — target left null; setup cannot be sized.");
     }
   }
 
