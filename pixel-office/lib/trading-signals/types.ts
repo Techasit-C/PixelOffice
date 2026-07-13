@@ -26,4 +26,11 @@ export interface TradingSignal {
   invalidationCondition: string;
   generatedAt: string;
   source: SignalSource;
+  /** Optional. When WAIT is returned because R:R at the current entry is below MIN_RR,
+   *  a better pullback/retest entry zone that would improve R:R. Analysis suggestion
+   *  only — never an order or a live entry. Absent/null otherwise. */
+  suggestedEntry?: { low: number; high: number } | null;
+  /** Optional diagnostic: the R:R actually observed at the current entry, which MAY be
+   *  below MIN_RR. Distinct from riskRewardRatio (which stays null unless actionable). */
+  observedRiskReward?: number | null;
 }

@@ -40,6 +40,10 @@ export const ATR_STOP_MULT = 1.5;
 /** Risk multiples for take-profit levels when no structural target is usable. */
 export const TP1_R_MULT = 1.5;
 export const TP2_R_MULT = 2.5;
+/** Max stop distance as a fraction of entry price for a setup to be "tight enough".
+ *  If risk/entry exceeds this, the entry is too far from structure — we do NOT stretch
+ *  a risk-multiple TP to rescue it; we WAIT and suggest a pullback entry instead. */
+export const MAX_STOP_DISTANCE_FRAC = 0.1; // 10%
 
 // --- Risk floors (HARD gates — reject when inputs missing) --------------------
 /** Minimum reward-to-risk. A setup below this is downgraded to WAIT. */

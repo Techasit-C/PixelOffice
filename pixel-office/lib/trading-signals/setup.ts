@@ -6,7 +6,14 @@
 // downgrades a candidate to WAIT. No I/O, no randomness, fully deterministic.
 import type { Candle } from "@/lib/market-data/candles";
 import type { PriceLevel, SignalDirection } from "./types";
-import { ATR_STOP_MULT, INDICATOR_PERIODS, TP1_R_MULT, TP2_R_MULT } from "./config";
+import {
+  ATR_STOP_MULT,
+  INDICATOR_PERIODS,
+  MAX_STOP_DISTANCE_FRAC,
+  MIN_RR,
+  TP1_R_MULT,
+  TP2_R_MULT,
+} from "./config";
 import {
   atr as calcAtr,
   closes,
@@ -39,6 +46,12 @@ export interface RawSetup {
   takeProfit: PriceLevel[];
   primaryTarget: number | null;
   riskRewardRatio: number | null;
+  /** Poor/actual R:R observed at the current entry (may be below MIN_RR). null when
+   *  no structural target existed to measure. Diagnostic only. */
+  observedRiskReward: number | null;
+  /** When WAIT is forced by a poor R:R, a tighter pullback/retest entry zone toward
+   *  structure. Analysis suggestion only, never an order. null otherwise. */
+  suggestedEntry: { low: number; high: number } | null;
   confidence: number; // 0..100
   reasoning: string[];
   qualityOk: boolean;
@@ -190,9 +203,17 @@ export function detectSetup(ind: Indicators): RawSetup | null {
     }
   }
 
-  // --- Target + R:R: structure first (preserves poor-R:R WAIT), else R-multiple
+  // --- Target + R:R: structure first; on poor R:R, TRY a risk-multiple fallback -----
+  // Order of preference:
+  //   1. Structural target whose honest R:R meets MIN_RR -> trade it (as before).
+  //   2. Structural target too close (or none) BUT the stop is "tight enough" and the
+  //      risk-multiple TP is a valid positive price -> adopt the risk-multiple TP.
+  //   3. Otherwise -> leave target/R:R null (gate WAITs), record the poor observed R:R
+  //      and a tighter pullback/retest entry zone toward structure.
   let primaryTarget: number | null = null;
   let riskRewardRatio: number | null = null;
+  let observedRiskReward: number | null = null;
+  let suggestedEntry: { low: number; high: number } | null = null;
   const takeProfit: PriceLevel[] = [];
 
   if (stopLoss !== null) {
@@ -209,12 +230,21 @@ export function detectSetup(ind: Indicators): RawSetup | null {
             ? ind.swingLow
             : null;
 
+      // Observed structural R:R (may be poor). Recorded as a diagnostic even when we do
+      // NOT trade the structural target.
+      let structRR: number | null = null;
       if (structTarget !== null) {
-        // STRUCTURE-FIRST: honest R:R from the real level. This CAN be below MIN_RR —
-        // do not override it; the risk gate downgrades that case to WAIT.
+        const structReward =
+          direction === "LONG" ? structTarget - entryMid : entryMid - structTarget;
+        structRR = structReward / risk;
+        observedRiskReward = structRR;
+      }
+
+      if (structTarget !== null && structRR !== null && structRR >= MIN_RR) {
+        // STRUCTURE-FIRST (actionable): honest R:R from the real level meets the floor.
         primaryTarget = structTarget;
         const reward = direction === "LONG" ? structTarget - entryMid : entryMid - structTarget;
-        riskRewardRatio = reward / risk;
+        riskRewardRatio = structRR;
         takeProfit.push({
           price: structTarget,
           label: `TP1 · ${direction === "LONG" ? "swing-high resistance" : "swing-low support"} (structural, R:R ${riskRewardRatio.toFixed(2)})`,
@@ -227,21 +257,78 @@ export function detectSetup(ind: Indicators): RawSetup | null {
           `Structural R:R ≈ ${riskRewardRatio.toFixed(2)} (risk ${risk.toFixed(2)} vs reward ${reward.toFixed(2)}).`,
         );
       } else {
-        // RISK-MULTIPLE FALLBACK: no usable structural level -> TPs at fixed R multiples.
-        primaryTarget =
+        // Structural target is absent OR too close (poor R:R). Before giving up, TRY a
+        // risk-multiple TP — adopt it only when the stop is "tight enough" AND the target
+        // is a valid, positive price. Never stretch a TP to rescue a far-from-structure
+        // entry: that path WAITs and suggests a pullback instead.
+        const stopDistanceFrac = risk / entryMid;
+        const fallbackTP1 =
           direction === "LONG" ? entryMid + TP1_R_MULT * risk : entryMid - TP1_R_MULT * risk;
-        riskRewardRatio = TP1_R_MULT;
-        const tp2 =
+        const fallbackTP2 =
           direction === "LONG" ? entryMid + TP2_R_MULT * risk : entryMid - TP2_R_MULT * risk;
-        takeProfit.push({ price: primaryTarget, label: `TP1 · ${TP1_R_MULT}R (measured, ATR-based)` });
-        takeProfit.push({ price: tp2, label: `TP2 · ${TP2_R_MULT}R (measured, ATR-based)` });
-        reasoning.push(
-          `No usable structural target — measured TP1 at ${TP1_R_MULT}R, TP2 at ${TP2_R_MULT}R (risk ${risk.toFixed(2)}).`,
-        );
+        const tightEnough = stopDistanceFrac <= MAX_STOP_DISTANCE_FRAC;
+        // LONG fallback is inherently a positive price above entry; SHORT must stay > 0.
+        const targetPositive = direction === "LONG" ? true : fallbackTP2 > 0;
+
+        if (tightEnough && targetPositive) {
+          primaryTarget = fallbackTP1;
+          riskRewardRatio = TP1_R_MULT;
+          if (structTarget !== null) {
+            takeProfit.push({
+              price: fallbackTP1,
+              label: `TP1 · ${TP1_R_MULT}R (risk-multiple, structural target too close)`,
+            });
+            takeProfit.push({
+              price: fallbackTP2,
+              label: `TP2 · ${TP2_R_MULT}R (risk-multiple, structural target too close)`,
+            });
+            reasoning.push(
+              `Structural target too close (observed R:R ≈ ${structRR!.toFixed(2)} < ${MIN_RR.toFixed(2)}) but stop is tight (${(stopDistanceFrac * 100).toFixed(1)}% of entry ≤ ${(MAX_STOP_DISTANCE_FRAC * 100).toFixed(0)}% cap) — using a risk-multiple TP1 at ${TP1_R_MULT}R, TP2 at ${TP2_R_MULT}R (risk ${risk.toFixed(2)}).`,
+            );
+          } else {
+            takeProfit.push({ price: fallbackTP1, label: `TP1 · ${TP1_R_MULT}R (measured, ATR-based)` });
+            takeProfit.push({ price: fallbackTP2, label: `TP2 · ${TP2_R_MULT}R (measured, ATR-based)` });
+            reasoning.push(
+              `No usable structural target — measured TP1 at ${TP1_R_MULT}R, TP2 at ${TP2_R_MULT}R (risk ${risk.toFixed(2)}).`,
+            );
+          }
+        } else {
+          // Fallback NOT adopted: leave target/R:R null so the gate WAITs. Record the poor
+          // observed R:R and suggest a tighter pullback/retest entry near structure.
+          if (observedRiskReward === null) observedRiskReward = TP1_R_MULT; // rejected fallback R:R
+          if (direction === "LONG") {
+            if (ind.swingLow !== null && ind.swingLow < entryMid) {
+              const sl = ind.swingLow;
+              suggestedEntry = { low: sl, high: sl + stopBuffer + (entryMid - sl) * 0.25 };
+            } else {
+              suggestedEntry = { low: entryMid - 2 * unit, high: entryMid - unit };
+            }
+          } else {
+            if (ind.swingHigh !== null && ind.swingHigh > entryMid) {
+              const sh = ind.swingHigh;
+              suggestedEntry = { low: sh - stopBuffer - (sh - entryMid) * 0.25, high: sh };
+            } else {
+              suggestedEntry = { low: entryMid + unit, high: entryMid + 2 * unit };
+            }
+          }
+          const sideWord = direction === "LONG" ? "support" : "resistance";
+          const rrText =
+            structRR !== null
+              ? `Structural R:R ≈ ${structRR.toFixed(2)} below required ${MIN_RR.toFixed(2)}`
+              : `No structural target and the risk-multiple TP was rejected`;
+          const capText = !tightEnough
+            ? ` and entry is ${(stopDistanceFrac * 100).toFixed(0)}% from stop (> ${(MAX_STOP_DISTANCE_FRAC * 100).toFixed(0)}% cap)`
+            : ` and the risk-multiple target would be a non-positive price`;
+          reasoning.push(
+            `${rrText}${capText}: risk/reward not acceptable yet — wait for a pullback toward [${suggestedEntry.low.toFixed(2)}–${suggestedEntry.high.toFixed(2)}] near ${sideWord} for a tighter stop.`,
+          );
+        }
       }
 
-      if (riskRewardRatio >= 2) confidence += 10;
-      else if (riskRewardRatio >= 1.5) confidence += 5;
+      if (riskRewardRatio !== null) {
+        if (riskRewardRatio >= 2) confidence += 10;
+        else if (riskRewardRatio >= 1.5) confidence += 5;
+      }
     } else {
       reasoning.push("Degenerate risk (non-positive) — target left null; setup cannot be sized.");
     }
@@ -259,6 +346,8 @@ export function detectSetup(ind: Indicators): RawSetup | null {
     takeProfit,
     primaryTarget,
     riskRewardRatio,
+    observedRiskReward,
+    suggestedEntry,
     confidence,
     reasoning,
     qualityOk,

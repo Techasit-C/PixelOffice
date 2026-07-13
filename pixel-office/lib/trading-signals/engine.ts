@@ -26,6 +26,8 @@ function waitSignal(
   reasoning: string[],
   confidence: number,
   generatedAt: string,
+  suggestedEntry: { low: number; high: number } | null = null,
+  observedRiskReward: number | null = null,
 ): TradingSignal {
   return {
     symbol,
@@ -37,9 +39,13 @@ function waitSignal(
     riskRewardRatio: null,
     confidence,
     reasoning,
-    invalidationCondition: WAIT_INVALIDATION,
+    invalidationCondition: suggestedEntry
+      ? `${WAIT_INVALIDATION} Re-evaluate on a pullback toward the suggested entry zone.`
+      : WAIT_INVALIDATION,
     generatedAt,
     source,
+    suggestedEntry,
+    observedRiskReward,
   };
 }
 
@@ -81,6 +87,8 @@ export function buildSignalFromCandles(
       [...(setup?.reasoning ?? []), ...gate.reasoning],
       setup?.confidence ?? 0,
       generatedAt,
+      setup?.suggestedEntry ?? null,
+      setup?.observedRiskReward ?? null,
     );
   }
 
@@ -107,6 +115,10 @@ export function buildSignalFromCandles(
     invalidationCondition: invalidation,
     generatedAt,
     source: "analysis",
+    // Actionable: no pullback suggestion. Carry the observed structural R:R diagnostic
+    // (the structural level's R:R, if one was measured; else null).
+    suggestedEntry: null,
+    observedRiskReward: setup.observedRiskReward,
   };
 }
 

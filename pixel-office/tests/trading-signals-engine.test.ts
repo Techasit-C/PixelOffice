@@ -6,7 +6,12 @@ import { buildSignalFromCandles } from "@/lib/trading-signals/engine";
 import { detectSetup, type Indicators } from "@/lib/trading-signals/setup";
 import { riskGate } from "@/lib/trading-signals/risk-gate";
 import type { Candle, CandleSeries } from "@/lib/market-data/candles";
-import { MIN_CONFIDENCE, MIN_RR } from "@/lib/trading-signals/config";
+import {
+  MAX_STOP_DISTANCE_FRAC,
+  MIN_CONFIDENCE,
+  MIN_RR,
+  TP1_R_MULT,
+} from "@/lib/trading-signals/config";
 import type { TradingSignal } from "@/lib/trading-signals/types";
 
 const AT = "2026-07-13T00:00:00.000Z";
@@ -128,17 +133,112 @@ describe("buildSignalFromCandles — no-trade vetoes", () => {
     expect(gate.reasoning.some((r) => /no structural stop-loss/i.test(r))).toBe(true);
   });
 
-  it("poor R:R (tiny reward vs large risk) => WAIT with R:R veto", () => {
+  // Reworked (behavior intentionally evolved): a poor STRUCTURAL R:R no longer WAITs
+  // unconditionally. The engine first tries a risk-multiple TP fallback; it only stays
+  // WAIT when that fallback is invalid — here because the stop sits > MAX_STOP_DISTANCE
+  // from entry (too far to rescue). The WAIT now carries a diagnostic observed R:R and a
+  // suggested tighter pullback entry near support.
+  it("poor structural R:R + stop too far (no valid fallback) => WAIT with diagnostics", () => {
     const closes = [
       ...linspace(100, 180, 60), // 0..59 uptrend
-      ...linspace(180, 160, 7).slice(1), // 60..65 deep pullback -> swing low 160
-      ...linspace(160, 180, 9).slice(1), // 66..73 rally -> swing high 180
-      ...linspace(180, 178, 7).slice(1), // 74..79 tiny fade -> entry 178
+      ...linspace(180, 160, 7).slice(1), // 60..65 deep pullback -> swing low ~160 (far stop)
+      ...linspace(160, 180, 9).slice(1), // 66..73 rally -> swing high ~180 (near target)
+      ...linspace(180, 178, 7).slice(1), // 74..79 tiny fade -> entry ~178
     ];
     const sig = buildSignalFromCandles(series(closes), AT);
     expect(sig.direction).toBe("WAIT");
-    expect(sig.reasoning.some((r) => /R:R .*below floor/i.test(r))).toBe(true);
+    // Structural target is close (poor R:R) and the stop is > 10% from entry, so the
+    // risk-multiple fallback is NOT stretched to rescue it: stays WAIT.
+    expect(sig.observedRiskReward).not.toBeNull();
+    expect(sig.observedRiskReward!).toBeLessThan(MIN_RR);
+    expect(sig.suggestedEntry).not.toBeNull();
+    expect(sig.suggestedEntry!.low).toBeLessThan(sig.suggestedEntry!.high);
+    // Pullback zone must sit BELOW the current price (~178) for a LONG-context entry.
+    expect(sig.suggestedEntry!.high).toBeLessThan(178);
+    expect(sig.reasoning.some((r) => /pullback toward/i.test(r))).toBe(true);
+    expect(sig.invalidationCondition).toMatch(/pullback toward the suggested entry zone/i);
     assertSignalShape(sig);
+  });
+});
+
+// Unit-level poor-R:R behavior with hand-built Indicators — precise, deterministic.
+describe("detectSetup — poor structural R:R handling", () => {
+  it("poor structural R:R but tight stop => actionable via risk-multiple fallback", () => {
+    // LONG: aligned uptrend, swing low just below entry (tight stop, risk ≈ 2% of entry),
+    // swing high just above entry (structural reward tiny => poor structural R:R). Because
+    // the stop is well within the MAX_STOP_DISTANCE cap, the risk-multiple TP is adopted.
+    const ind: Indicators = {
+      lastClose: 100,
+      smaFast: 101,
+      smaSlow: 98,
+      emaFast: 100.5,
+      emaSlow: 99,
+      rsi: 60,
+      atr: 1,
+      volumeAvg: 100,
+      lastVolume: 130,
+      swingHigh: 101.5, // structural target just above -> reward ~1.5
+      swingLow: 98, // structural stop ~98 - buffer -> risk ~2.1 (2% of entry)
+    };
+    const setup = detectSetup(ind);
+    expect(setup).not.toBeNull();
+    expect(setup!.direction).toBe("LONG");
+    // Structural R:R was poor and recorded as a diagnostic...
+    expect(setup!.observedRiskReward).not.toBeNull();
+    expect(setup!.observedRiskReward!).toBeLessThan(MIN_RR);
+    // ...but the fallback rescued it to an actionable 1.5R signal.
+    expect(setup!.primaryTarget).not.toBeNull();
+    expect(setup!.riskRewardRatio).toBe(TP1_R_MULT);
+    expect(setup!.riskRewardRatio!).toBeGreaterThanOrEqual(MIN_RR);
+    expect(setup!.qualityOk).toBe(true);
+    expect(setup!.suggestedEntry).toBeNull();
+    // Sanity: the tight stop really is within the distance cap.
+    const risk = ind.lastClose! - setup!.stopLoss!;
+    expect(risk / ind.lastClose!).toBeLessThanOrEqual(MAX_STOP_DISTANCE_FRAC);
+    // TP labels advertise the risk-multiple (not structural) origin.
+    expect(setup!.takeProfit.some((tp) => /risk-multiple/i.test(tp.label))).toBe(true);
+    const gate = riskGate(setup);
+    expect(gate.approved).toBe(true);
+    expect(gate.direction).toBe("LONG");
+  });
+
+  it("poor structural R:R + stop too far => WAIT with suggested entry ABOVE (SHORT)", () => {
+    // SHORT: aligned downtrend. Swing high far above entry (stop ~18% away => beyond cap),
+    // swing low just below entry (tiny structural reward => poor R:R). Fallback rejected.
+    const ind: Indicators = {
+      lastClose: 100,
+      smaFast: 100,
+      smaSlow: 105,
+      emaFast: 101,
+      emaSlow: 104,
+      rsi: 40,
+      atr: 1,
+      volumeAvg: 100,
+      lastVolume: 130,
+      swingHigh: 118, // structural stop far above -> risk ~18 (18% of entry, > cap)
+      swingLow: 99, // structural target just below -> reward ~1 (poor R:R)
+    };
+    const setup = detectSetup(ind);
+    expect(setup).not.toBeNull();
+    expect(setup!.direction).toBe("SHORT");
+    // No actionable target/R:R -> the gate will WAIT.
+    expect(setup!.primaryTarget).toBeNull();
+    expect(setup!.riskRewardRatio).toBeNull();
+    expect(setup!.qualityOk).toBe(false);
+    // Diagnostics present: poor observed R:R + a tighter retest zone near resistance.
+    expect(setup!.observedRiskReward).not.toBeNull();
+    expect(setup!.observedRiskReward!).toBeLessThan(MIN_RR);
+    expect(setup!.suggestedEntry).not.toBeNull();
+    expect(setup!.suggestedEntry!.low).toBeLessThan(setup!.suggestedEntry!.high);
+    // SHORT-context: the retest zone sits ABOVE the current entry zone.
+    expect(setup!.suggestedEntry!.low).toBeGreaterThan(setup!.entryZone.high);
+    const gate = riskGate(setup);
+    expect(gate.approved).toBe(false);
+    expect(gate.direction).toBe("WAIT");
+  });
+
+  it("MIN_RR is unchanged (still 1.5)", () => {
+    expect(MIN_RR).toBe(1.5);
   });
 });
 
