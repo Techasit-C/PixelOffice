@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import dynamic from "next/dynamic";
 import { RefreshCw } from "lucide-react";
 import { PageShell } from "@/components/ui/PageShell";
 import { PixelCard, SourceTag, StatLine } from "@/components/ui/PixelCard";
 import { MockRibbon } from "@/components/ui/MockRibbon";
+import { Drawer } from "@/components/ui/Drawer";
 import { TVSignalsWidget } from "@/components/widgets/TVSignalsWidget";
 import { CryptoPricesWidget } from "@/components/widgets/CryptoPricesWidget";
 import { GridBotWidget } from "@/components/widgets/GridBotWidget";
 import { TradingWidget } from "@/components/widgets/TradingWidget";
+import { AIAgentsWidget } from "@/components/widgets/AIAgentsWidget";
+import { HOTSPOT_META, type HotspotId } from "@/components/pixel-office/office-hotspots";
 import { useJsonPoll } from "@/lib/use-json-poll";
 import {
   makeGridBotData,
@@ -19,6 +24,24 @@ import {
 import type { TVAlert } from "@/lib/tradingview-alerts";
 import type { AgentsResponse } from "@/types/agent";
 import type { Quote } from "@/types/market";
+
+// Three.js/R3F touch WebGL + `document` at render time, so this must never be
+// part of the server-rendered tree — ssr:false is required (and only legal
+// from a Client Component, which this file already is).
+const PixelOffice3DScene = dynamic(
+  () =>
+    import("@/components/pixel-office/PixelOffice3DScene").then(
+      (m) => m.PixelOffice3DScene,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[420px] items-center justify-center text-[11px] text-muted-foreground sm:h-[520px]">
+        กำลังโหลดฉาก 3D…
+      </div>
+    ),
+  },
+);
 
 const ACCENT = "#2962ff";
 
@@ -76,6 +99,10 @@ export default function MissionControlClient() {
   // exactly like the office page. Cancelled on unmount.
   const [gridBot, setGridBot] = useState(makeGridBotData());
   const [trading, setTrading] = useState(makeTradingData());
+  // Which 3D-office hotspot panel is open (null = none). Set by either a
+  // click on the model in PixelOffice3DScene or its keyboard-accessible
+  // fallback button list — both call the same setter.
+  const [activeHotspot, setActiveHotspot] = useState<HotspotId | null>(null);
   useEffect(() => {
     const id = setInterval(() => {
       const t = nowClock();
@@ -228,12 +255,101 @@ export default function MissionControlClient() {
         </PixelCard>
       </div>
 
+      {/* 3D office preview — renders the office_room_complete.glb asset pack */}
+      <PixelCard
+        title="3D OFFICE PREVIEW"
+        accent="#a78bfa"
+        right={
+          <span className="text-[10px] text-muted-foreground/70">drag to orbit</span>
+        }
+      >
+        <PixelOffice3DScene onHotspotSelect={setActiveHotspot} />
+      </PixelCard>
+
       {/* Tasks — deferred by CEO, no data source. Honest placeholder only. */}
       <PixelCard title="TASKS" accent="#6b7280">
         <div className="text-[11px] text-muted-foreground">
           ยังไม่มี execution log — ไม่มีแหล่งข้อมูลงานที่รันจริง (no execution log yet)
         </div>
       </PixelCard>
+
+      {/* Hotspot drawer — opened by clicking the 3D office model (or its
+          keyboard-accessible fallback buttons). Every branch reuses data
+          already polled above; nothing here fetches anything new. */}
+      <Drawer
+        open={activeHotspot !== null}
+        title={activeHotspot ? HOTSPOT_META[activeHotspot].title : ""}
+        accent={activeHotspot ? HOTSPOT_META[activeHotspot].accent : ACCENT}
+        onClose={() => setActiveHotspot(null)}
+      >
+        {activeHotspot === "agents" ? (
+          <AIAgentsWidget
+            data={agents.data ?? null}
+            loading={agents.loading}
+            error={agents.error ?? null}
+          />
+        ) : null}
+
+        {activeHotspot === "systemHealth" ? (
+          <div>
+            <HealthRow
+              label="Crypto prices"
+              ok={cryptoLive}
+              detail={crypto.error ? "error" : cryptoLive ? "live" : "mock"}
+            />
+            <HealthRow
+              label="Affiliate feed"
+              ok={affiliateLive}
+              detail={affiliate.error ? "error" : affiliateLive ? "live" : "mock"}
+            />
+            <HealthRow
+              label="Company holdings"
+              ok={holdingsLive}
+              detail={company.error ? "error" : holdingsLive ? "live" : "mock"}
+            />
+            <HealthRow
+              label="AI agents"
+              ok={!agents.error && agentErrors === 0}
+              detail={
+                agents.error ? "error" : agentErrors > 0 ? `${agentErrors} error` : "ok"
+              }
+            />
+            <div className="mt-2 text-[9px] text-muted-foreground/60">
+              * API latency, cache hit-rate, and rate-limit budget aren&apos;t wired to
+              a real telemetry source yet — this panel only reflects the data-source
+              flags above.
+            </div>
+          </div>
+        ) : null}
+
+        {activeHotspot === "trading" ? (
+          <div className="space-y-3">
+            <CryptoPricesWidget quotes={crypto.data?.quotes ?? []} source={crypto.data?.source} />
+            <div className="text-[10px] text-muted-foreground">
+              Grid Bot and V2 Trading (below, on this page) are UI-only mocks — MEXC has
+              no public API for them yet.
+            </div>
+            <Link
+              href="/portfolio"
+              className="inline-block text-[10px] text-primary underline-offset-2 hover:underline"
+            >
+              View full portfolio →
+            </Link>
+          </div>
+        ) : null}
+
+        {activeHotspot === "strategy" ? (
+          <div className="text-[11px] text-muted-foreground">
+            ยังไม่มี execution log — ไม่มีแหล่งข้อมูลงานที่รันจริง (no execution log yet)
+          </div>
+        ) : null}
+
+        {activeHotspot === "reports" ? (
+          <div className="text-[11px] text-muted-foreground">
+            Reports &amp; docs export isn&apos;t wired to a backend yet — coming soon.
+          </div>
+        ) : null}
+      </Drawer>
     </PageShell>
   );
 }
