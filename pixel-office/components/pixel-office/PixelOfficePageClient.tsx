@@ -14,6 +14,10 @@ import { TeamChatWidget } from "@/components/widgets/TeamChatWidget";
 import { LofiWidget } from "@/components/widgets/LofiWidget";
 import { TradingViewChartWidget } from "@/components/widgets/TradingViewChartWidget";
 import { TVSignalsWidget } from "@/components/widgets/TVSignalsWidget";
+import {
+  TradingSignalsWidget,
+  type TradingSignal,
+} from "@/components/widgets/TradingSignalsWidget";
 import { PortfolioWidget } from "@/components/widgets/PortfolioWidget";
 import {
   WidgetGatedNotice,
@@ -51,6 +55,7 @@ const DEFAULT_LAYOUT: LayoutMap = {
   tvSignals: { x: 1230, y: 2050, minimized: false, closed: false },
   teamChat: { x: 900, y: 2350, minimized: false, closed: false },
   lofi: { x: 1360, y: 950, minimized: false, closed: false },
+  tradingSignals: { x: 20, y: 950, minimized: false, closed: false },
 };
 
 const WIDGET_META: Record<
@@ -68,6 +73,11 @@ const WIDGET_META: Record<
   tvSignals: { title: "TV SIGNALS", width: 280, accent: "#2962ff" },
   teamChat: { title: "TEAM CHAT", width: 340, accent: "#ec4899" },
   lofi: { title: "LOFI BEATS TO CODE", width: 300, accent: "#8b5cf6" },
+  tradingSignals: {
+    title: "AI TRADING SIGNALS",
+    width: 320,
+    accent: "#22c55e",
+  },
 };
 
 // Map an auth-gated read HTTP status to a degraded-placeholder reason for the
@@ -104,6 +114,8 @@ export default function PixelOfficePageClient() {
     null,
   );
   const [tvGate, setTvGate] = useState<WidgetGateReason | null>(null);
+  const [signals, setSignals] = useState<TradingSignal[]>([]);
+  const [signalsGate, setSignalsGate] = useState<WidgetGateReason | null>(null);
 
   // Grid Bot / V2 Trading: MEXC has no public API for its native grid bots
   // (UI-only feature), so these stay mock — just tick gently to feel alive.
@@ -271,6 +283,38 @@ export default function PixelOfficePageClient() {
     };
   }, []);
 
+  // Read-only AI trading signals (display only — never places orders). Backend
+  // returns { signals, generatedAt, source }. Auth-gated (M6.1) like the other
+  // reads on this public page — degrade to a calm notice on 401/429, keep the
+  // last-good list on transient errors. Check status BEFORE parsing the body.
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const res = await fetch("/api/trading-signals");
+        const gate = gateReasonFor(res.status);
+        if (gate) {
+          if (cancelled) return;
+          setSignalsGate(gate);
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (cancelled) return;
+        setSignals(Array.isArray(json.signals) ? json.signals : []);
+        setSignalsGate(null);
+      } catch (err) {
+        console.error("trading-signals poll failed", err);
+      }
+    }
+    poll();
+    const id = setInterval(poll, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
   function handleSend(text: string) {
     setChat((prev) => [
       ...prev,
@@ -327,6 +371,10 @@ export default function PixelOfficePageClient() {
           <WidgetGatedNotice reason={tvGate} />
         ) : (
           <TVSignalsWidget alerts={tvAlerts} />
+        );
+      case "tradingSignals":
+        return (
+          <TradingSignalsWidget signals={signals} gateReason={signalsGate} />
         );
       case "teamChat":
         return <TeamChatWidget entries={chat} onSend={handleSend} />;
