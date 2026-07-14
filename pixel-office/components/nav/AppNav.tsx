@@ -15,6 +15,7 @@ const LINKS: { href: string; label: string }[] = [
   { href: "/operations", label: "Operations" },
   { href: "/mission-control", label: "Mission Control" },
   { href: "/portfolio", label: "Portfolio" },
+  { href: "/trading-bot", label: "Trading Bot" },
 ];
 
 export function AppNav({ accent = "#3b82f6" }: { accent?: string }) {
