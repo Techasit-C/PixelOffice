@@ -29,6 +29,29 @@ export function ema(values: number[], period: number): number | null {
 }
 
 /**
+ * Exponential moving average as a FULL series, same length as `values`. Entries
+ * before the seed index (period-1) are null. Same seed/recurrence convention as
+ * ema() above (SMA seed, then k=2/(period+1) forward smoothing), but retains
+ * every intermediate value — needed to compute a moving average OF this series
+ * (MACD's signal line), which the scalar ema() cannot support.
+ */
+export function emaSeries(values: number[], period: number): (number | null)[] {
+  const out: (number | null)[] = new Array(values.length).fill(null);
+  if (period <= 0 || values.length < period) return out;
+  const k = 2 / (period + 1);
+  let seed = 0;
+  for (let i = 0; i < period; i++) seed += values[i];
+  seed /= period;
+  out[period - 1] = seed;
+  let prev = seed;
+  for (let i = period; i < values.length; i++) {
+    prev = values[i] * k + prev * (1 - k);
+    out[i] = prev;
+  }
+  return out;
+}
+
+/**
  * Wilder's RSI over the final `period` window. Returns 0..100, or null when there
  * are fewer than `period + 1` closes. 100 when there are no losses in-window.
  */
