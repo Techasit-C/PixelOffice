@@ -1,0 +1,137 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`detectSetup — pinned baseline (Phase 2 regression guard) > clean uptrend + pullback (LONG) — baseline snapshot 1`] = `
+{
+  "confidence": 95,
+  "direction": "LONG",
+  "entryZone": {
+    "high": 162.29008909042,
+    "low": 161.70991090958,
+  },
+  "observedRiskReward": 1.8110566267335955,
+  "primaryTarget": 170.5,
+  "qualityOk": true,
+  "reasoning": [
+    "Uptrend: fast SMA(20) above slow SMA(50) by 5.28% with price above the slow SMA.",
+    "RSI(14) 60.3 — momentum supports longs, not yet overbought.",
+    "Volume above 20-bar average — participation confirms the move.",
+    "Stop below swing low 157.50 − buffer (structural).",
+    "Structural R:R ≈ 1.81 (risk 4.69 vs reward 8.50).",
+  ],
+  "riskRewardRatio": 1.8110566267335955,
+  "stopLoss": 157.30660727305334,
+  "suggestedEntry": null,
+  "takeProfit": [
+    {
+      "label": "TP1 · swing-high resistance (structural, R:R 1.81)",
+      "price": 170.5,
+    },
+    {
+      "label": "TP2 · 1.618 measured-move extension",
+      "price": 175.753,
+    },
+  ],
+}
+`;
+
+exports[`detectSetup — pinned baseline (Phase 2 regression guard) > clean uptrend, no structural levels, ATR fallback — baseline snapshot 1`] = `
+{
+  "confidence": 70,
+  "direction": "LONG",
+  "entryZone": {
+    "high": 180.32391304347826,
+    "low": 179.67608695652174,
+  },
+  "observedRiskReward": null,
+  "primaryTarget": 184.85869565217394,
+  "qualityOk": true,
+  "reasoning": [
+    "Uptrend: fast SMA(20) above slow SMA(50) by 11.47% with price above the slow SMA.",
+    "RSI(14) 100.0 — overbought; chasing risk.",
+    "Volume above 20-bar average — participation confirms the move.",
+    "ATR-based stop at 1.5×ATR (3.24) below entry — no valid swing low.",
+    "No usable structural target — measured TP1 at 1.5R, TP2 at 2.5R (risk 3.24).",
+  ],
+  "riskRewardRatio": 1.5,
+  "stopLoss": 176.76086956521738,
+  "suggestedEntry": null,
+  "takeProfit": [
+    {
+      "label": "TP1 · 1.5R (measured, ATR-based)",
+      "price": 184.85869565217394,
+    },
+    {
+      "label": "TP2 · 2.5R (measured, ATR-based)",
+      "price": 188.09782608695656,
+    },
+  ],
+}
+`;
+
+exports[`detectSetup — pinned baseline (Phase 2 regression guard) > downtrend + bounce (SHORT) — baseline snapshot 1`] = `
+{
+  "confidence": 95,
+  "direction": "SHORT",
+  "entryZone": {
+    "high": 148.28281471391037,
+    "low": 147.71718528608963,
+  },
+  "observedRiskReward": 1.8129298891923633,
+  "primaryTarget": 139.5,
+  "qualityOk": true,
+  "reasoning": [
+    "Downtrend: fast SMA(20) below slow SMA(50) by 4.20% with price below the slow SMA.",
+    "RSI(14) 41.9 — momentum supports shorts, not yet oversold.",
+    "Volume above 20-bar average — participation confirms the move.",
+    "Stop above swing high 152.50 + buffer (structural).",
+    "Structural R:R ≈ 1.81 (risk 4.69 vs reward 8.50).",
+  ],
+  "riskRewardRatio": 1.8129298891923633,
+  "stopLoss": 152.68854314260693,
+  "suggestedEntry": null,
+  "takeProfit": [
+    {
+      "label": "TP1 · swing-low support (structural, R:R 1.81)",
+      "price": 139.5,
+    },
+    {
+      "label": "TP2 · 1.618 measured-move extension",
+      "price": 134.247,
+    },
+  ],
+}
+`;
+
+exports[`detectSetup — pinned baseline (Phase 2 regression guard) > flat/no-bias input — low-quality candidate, qualityOk false (baseline) 1`] = `
+{
+  "confidence": 40,
+  "direction": "LONG",
+  "entryZone": {
+    "high": 101.15189873417721,
+    "low": 100.84810126582279,
+  },
+  "observedRiskReward": null,
+  "primaryTarget": 103.27848101265822,
+  "qualityOk": false,
+  "reasoning": [
+    "Weak/unclear uptrend: fast vs slow SMA gap only 0.19% or price below the slow SMA.",
+    "RSI(14) 100.0 — overbought; chasing risk.",
+    "Volume below 20-bar average — weaker participation.",
+    "ATR-based stop at 1.5×ATR (1.52) below entry — no valid swing low.",
+    "No usable structural target — measured TP1 at 1.5R, TP2 at 2.5R (risk 1.52).",
+  ],
+  "riskRewardRatio": 1.5,
+  "stopLoss": 99.48101265822785,
+  "suggestedEntry": null,
+  "takeProfit": [
+    {
+      "label": "TP1 · 1.5R (measured, ATR-based)",
+      "price": 103.27848101265822,
+    },
+    {
+      "label": "TP2 · 2.5R (measured, ATR-based)",
+      "price": 104.79746835443036,
+    },
+  ],
+}
+`;
