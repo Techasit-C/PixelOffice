@@ -66,3 +66,7 @@ export const MAX_OPEN_POSITIONS = 0; // placeholder; not evaluated in v1
 
 /** Number of candles to request from the public provider per analysis. */
 export const CANDLE_LIMIT = 200;
+
+// --- Phase 2: closed-candle / staleness (candle-closed.ts) -------------------
+/** Grace period beyond one full timeframe interval before a series is stale. */
+export const STALE_GRACE_MS = 5 * 60_000;
