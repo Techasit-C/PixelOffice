@@ -33,4 +33,16 @@ export interface TradingSignal {
   /** Optional diagnostic: the R:R actually observed at the current entry, which MAY be
    *  below MIN_RR. Distinct from riskRewardRatio (which stays null unless actionable). */
   observedRiskReward?: number | null;
+  /** Phase 2 diagnostics — present only on an approved LONG/SHORT signal. */
+  macd?: { macdLine: number | null; signalLine: number | null; histogram: number | null };
+  bollinger?: { middle: number | null; upper: number | null; lower: number | null; percentB: number | null };
+  timeframeConfirmation?: {
+    oneHour: "ALIGNED" | "NEUTRAL" | "UNAVAILABLE" | "OPPOSITE";
+    oneDay: "ALIGNED" | "NEUTRAL" | "UNAVAILABLE" | "OPPOSITE";
+    adjustment: number;
+  } | null;
+  /** Deterministic, template-generated — never an LLM, never a profit promise.
+   *  Present only on an approved LONG/SHORT signal. Confidence is a HEURISTIC
+   *  score, not a probability of profit — this field must never claim otherwise. */
+  plainLanguageSummary?: string;
 }
