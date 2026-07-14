@@ -147,3 +147,54 @@ export async function fetchHistoricalCandles(
 
   return { candles: allCandles, malformedCount, truncated: false, failed: false };
 }
+
+// These three constants intentionally duplicate PRIMARY_WARMUP_BARS/
+// CONFIRMATION_WARMUP_BARS from lib/backtest/candle-window.ts rather than importing
+// them. lib/backtest/ must never import this file (safety boundary); a fetch module
+// importing FROM lib/backtest/ is not itself forbidden, but keeping this direction
+// import-free too keeps the safety-scan story a simple one-directional ban rather than
+// requiring a third shared module. If the warm-up bar counts ever change, update both
+// copies together.
+const FOUR_HOUR_MS = 14_400_000;
+const ONE_HOUR_MS_LOCAL = 3_600_000;
+const ONE_DAY_MS_LOCAL = 86_400_000;
+
+function primaryFetchWindow(normalizedStart: number, normalizedEnd: number) {
+  return { fetchStartTime: normalizedStart - 60 * FOUR_HOUR_MS, fetchEndTime: normalizedEnd - 1 };
+}
+function oneHourFetchWindow(normalizedStart: number, normalizedEnd: number) {
+  return { fetchStartTime: normalizedStart - 50 * ONE_HOUR_MS_LOCAL, fetchEndTime: normalizedEnd - 1 };
+}
+function oneDayFetchWindow(normalizedStart: number, normalizedEnd: number) {
+  return { fetchStartTime: normalizedStart - 50 * ONE_DAY_MS_LOCAL, fetchEndTime: normalizedEnd - 1 };
+}
+
+export interface HistoricalFetchBundle {
+  primary: PaginatedFetchResult;
+  oneHour: PaginatedFetchResult;
+  oneDay: PaginatedFetchResult;
+}
+
+/**
+ * Fetches primary (4h) + 1h + 1d confirmation history for a backtest run, each
+ * extended by its own warm-up pre-roll, concurrently, sharing one AbortSignal. Never
+ * throws — failures are reported per-timeframe in the bundle.
+ */
+export async function fetchBacktestHistory(
+  ticker: string,
+  normalizedStart: number,
+  normalizedEnd: number,
+  signal?: AbortSignal,
+): Promise<HistoricalFetchBundle> {
+  const primaryWindow = primaryFetchWindow(normalizedStart, normalizedEnd);
+  const oneHourWindow = oneHourFetchWindow(normalizedStart, normalizedEnd);
+  const oneDayWindow = oneDayFetchWindow(normalizedStart, normalizedEnd);
+
+  const [primary, oneHour, oneDay] = await Promise.all([
+    fetchHistoricalCandles(ticker, "4h", primaryWindow.fetchStartTime, primaryWindow.fetchEndTime, signal),
+    fetchHistoricalCandles(ticker, "1h", oneHourWindow.fetchStartTime, oneHourWindow.fetchEndTime, signal),
+    fetchHistoricalCandles(ticker, "1d", oneDayWindow.fetchStartTime, oneDayWindow.fetchEndTime, signal),
+  ]);
+
+  return { primary, oneHour, oneDay };
+}
