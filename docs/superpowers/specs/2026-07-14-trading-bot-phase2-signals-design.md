@@ -1,6 +1,6 @@
 # AI Trading Bot — Phase 2 Design (Extended Signal Analysis)
 
-Status: proposed, awaiting approval. Scope: extends the existing
+Status: **Approved for implementation planning** (2026-07-14). Scope: extends the existing
 `lib/trading-signals/` engine with MACD, Bollinger Bands, multi-timeframe
 confirmation, richer heuristic confidence scoring, and deterministic
 plain-language explanations — integrated into Phase 1's `SignalEngineStrategy`
