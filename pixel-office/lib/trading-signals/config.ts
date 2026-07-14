@@ -70,3 +70,9 @@ export const CANDLE_LIMIT = 200;
 // --- Phase 2: closed-candle / staleness (candle-closed.ts) -------------------
 /** Grace period beyond one full timeframe interval before a series is stale. */
 export const STALE_GRACE_MS = 5 * 60_000;
+
+// --- Phase 2: Bollinger Bands (bollinger.ts) ----------------------------------
+// Deliberately independent of INDICATOR_PERIODS.smaFast (also 20) — avoids
+// silently coupling two unrelated tuning knobs.
+export const BOLLINGER_PERIOD = 20;
+export const BOLLINGER_STDDEV_MULT = 2;
