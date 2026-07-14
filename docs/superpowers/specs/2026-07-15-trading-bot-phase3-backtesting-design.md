@@ -1,6 +1,6 @@
 # AI Trading Bot — Phase 3: Deterministic Long-Only Backtesting
 
-**Status: Proposed — awaiting approval (2026-07-15).**
+**Status: Approved for implementation planning (2026-07-15).**
 
 This specification defines Phase 3 of the AI Trading Bot: a deterministic, auditable,
 long-only backtesting system for the accepted Phase 2 signal engine. It does not place
@@ -79,6 +79,22 @@ Phase 1 (`docs/superpowers/specs/2026-07-14-trading-bot-phase1-design.md`) and P
 | `INTERNAL_DEADLINE_S` | 55 | 5s margin under the route ceiling |
 | `RESPONSE_SIZE_CAP_BYTES` | 2,097,152 (2 MB) | **self-imposed**, §12 — not a platform claim |
 | `EQUITY_CHART_MAX_POINTS` | 500 | chart-only downsampling, §12 |
+
+### 2.1 Configuration bounds (server-side allowlist, enforced before any fetch)
+
+| Config field | Allowed range | Rejected as |
+|---|---|---|
+| `symbol` | one of the Phase 2 whitelist keys (`BTC/USDT`, `ETH/USDT`, `SOL/USDT`) — no arbitrary string | `UNSUPPORTED_SYMBOL` |
+| `timeframe` | `"4h"` (primary) only — 1h/1d are confirmation-only, not user-selectable | `UNSUPPORTED_TIMEFRAME` |
+| `requestedStart`/`requestedEnd` | span `≥ 1 day`, `≤ MAX_REQUESTED_RANGE_DAYS (365)`, `requestedEnd > requestedStart`, both parseable UTC | `INVALID_DATE_RANGE` / `RANGE_TOO_LARGE` |
+| `initialBalance` | `100 ≤ x ≤ 1,000,000` USDT | `INVALID_INITIAL_BALANCE` |
+| `feeRate` | `0 ≤ x ≤ 0.01` (0%–1%) | `INVALID_FEE_RATE` |
+| `spreadBps` | `0 ≤ x ≤ 100` (0–1%) | `INVALID_SPREAD` |
+| `slippageBps` | `0 ≤ x ≤ 100` (0–1%) | `INVALID_SLIPPAGE` |
+
+These bounds are the sweep space for the §8.4 property-style adjustment-loop tests, and
+are validated server-side (route layer) before any historical fetch is attempted — the
+provider host itself is never user-suppliable (§19).
 
 ---
 
@@ -500,8 +516,25 @@ exactly once and `cashAfterEntry ≥ 0`. (b) an equivalent fixture where roundin
 `actualNetRisk` `10⁻⁸` over `riskBudget` while cash is otherwise ample — assert the loop
 decrements until `actualNetRisk ≤ riskBudget` exactly, with no tolerance applied.
 
+`MAX_AFFORDABILITY_ADJUST_STEPS` stays fixed at **8**. In addition to the two hand-built
+boundary fixtures above, a **property-style test suite** exercises the loop across the
+full supported-input space: every whitelisted symbol, the allowed `initialBalance` range,
+the allowed `feeRate` range, the allowed `spreadBps` range, and the allowed `slippageBps`
+range (each swept across its configured min/max/representative-mid values, combined
+pairwise rather than as a full cartesian product, to keep the suite fast and
+deterministic — no randomness, no property-based/fuzzing library, just an explicit fixed
+grid of fixture values). For every combination the test asserts: (1) if no positive
+quantity satisfies both constraints within 8 decrements, the run rejects safely
+(`QUANTITY_TOO_SMALL`, `INSUFFICIENT_FUNDS_FOR_MINIMUM_SIZE`, or
+`RISK_BUDGET_UNREPRESENTABLE` — never an unhandled exception, never a silently-invalid
+trade); (2) whenever the loop *does* accept, the accepted quantity satisfies both
+`entryCost ≤ availableCash` and `actualNetRisk ≤ riskBudget` exactly, with no tolerance.
+**`MAX_AFFORDABILITY_ADJUST_STEPS` must not be increased, and no tolerance constant may
+be introduced, without a separate, explicit approval** — this is a hard, documented
+product decision, not an implementation detail to be tuned freely during coding.
+
 Identical accounting (entry-side only, no risk-budget constraint) is reused for
-benchmark sizing (§10.6).
+benchmark sizing (§10.6), including the same property-style sweep.
 
 ---
 
@@ -693,11 +726,10 @@ undercount true size.
   (bounded by trade count / bar count, both small relative to the 2 MB budget), plus a
   chart-only equity curve capped at `EQUITY_CHART_MAX_POINTS = 500` (fixed-stride
   downsampled, always including the first and last point).
-- **No separate full-resolution equity CSV is offered.** Phase 3 exports only data
-  actually present in the response: the full trade-ledger CSV (complete, ungapped,
-  generated client-side from the response), and — if an equity CSV is offered at all —
-  it is built from the same ≤500-point chart series already returned, not a
-  full-resolution series the client never received.
+- **Phase 3 MVP exports only the complete trade-ledger CSV.** No equity-curve CSV is
+  offered or promised, full-resolution or otherwise. The equity curve returned for
+  display is the chart-only, ≤500-point series described above; it exists solely to
+  render the sparkline (§14) and is not exported.
 - On overflow (actual byte length exceeds the cap): return `RESPONSE_TOO_LARGE` — never
   silently truncate the trade ledger or audit metadata to fit.
 
@@ -757,8 +789,9 @@ smoothed over.
 - **Assumptions/warnings card** — echoes `DataQualityReport`, `warnings[]`, and standing
   disclaimers (heuristic-confidence language inherited from Phase 2, no execution, the
   synthetic-end-of-test-liquidation disclosure).
-- **CSV export** — client-side, from the already-fetched JSON response only (§12) — no
-  new endpoint, no persistence.
+- **CSV export** — the complete trade-ledger CSV only, generated client-side from the
+  already-fetched JSON response (§12) — no equity-curve CSV, no new endpoint, no
+  persistence.
 
 ---
 
@@ -793,7 +826,9 @@ since those two runs are expected to differ at the cutoff by design. Corrected m
 treatment); `D8`/`Q8` rounding parity against `lib/trading-bot/mock-broker.ts`'s
 convention; the complete entry-validation sequence (§8.3) with one fixture per named
 rejection reason; the bounded cash+risk adjustment loop (§8.4) including both boundary
-tests; gap-through-stop/target fills; stop-first-on-both-touched; entry-bar exit
+tests and the §2.1/§8.4 property-style sweep across every whitelisted symbol and the
+allowed balance/fee/spread/slippage ranges (fixed grid, pairwise combinations, no
+fuzzing library); gap-through-stop/target fills; stop-first-on-both-touched; entry-bar exit
 ordering (§10.4/§10.5); decision-bar/tradable-bar classification (§6.3) including the
 worked three-bar example; benchmark sizing/liquidation (§10.8); data-validation policy
 (§13) fixtures for every count category, including the conflicting-duplicate hard
@@ -819,8 +854,10 @@ clean; no execute/broker capability is reachable from this page.
 
 - Symbol/timeframe scope stays within the existing Phase 2 whitelist (`BTC/USDT`,
   `ETH/USDT`, `SOL/USDT`) and the existing 4h primary / 1h+1d confirmation shape.
-- `spreadBps`/`slippageBps` model a single blended, always-adverse cost — no order-book
-  depth modeling, no randomness.
+- `spreadBps` and `slippageBps` remain two separate, independently configurable inputs
+  (§8.2) — they are **compounded together into one effective adverse execution price**
+  per fill, but are never represented internally or in configuration as a single
+  blended/combined knob. No order-book depth modeling, no randomness.
 - Risk-free rate = 0 for Sharpe.
 - The 2 MB response cap and `EQUITY_CHART_MAX_POINTS = 500` are product choices, not
   independently verified against any platform-imposed body-size limit.
@@ -830,11 +867,9 @@ clean; no execute/broker capability is reachable from this page.
 ## 18. Unresolved Decisions (non-blocking, deferred to the implementation plan)
 
 - Exact UI copy/validation-error wording.
-- Whether an equity-curve CSV is offered at all in Phase 3 MVP, beyond the trade-ledger
-  CSV (§12 already specifies that *if* offered, it must reuse the same ≤500-point
-  series — the yes/no decision itself is left open).
-- Whether `MAX_AFFORDABILITY_ADJUST_STEPS` needs retuning after real-fixture testing
-  during implementation.
+
+`MAX_AFFORDABILITY_ADJUST_STEPS = 8` and the CSV export scope (§12/§14) are resolved,
+not open — see §21 items 17–19.
 
 ---
 
@@ -913,5 +948,13 @@ this specification was written.
 16. Corrected the final-evaluation-boundary defect that would have silently dropped
     every run's last four hours (§6.3's decision-bar/tradable-bar split).
 17. 2 MB response cap and chart-only downsampling reframed as a self-imposed product
-    limit, not a platform claim; no full-resolution CSV promised beyond what the
-    response actually contains.
+    limit, not a platform claim.
+18. `spreadBps` and `slippageBps` reconfirmed as two permanently separate configuration
+    inputs — compounded into one effective adverse execution price per fill, but never
+    represented or configured as a single blended value (§8.2, §17).
+19. Phase 3 MVP exports the complete trade-ledger CSV only — no equity-curve CSV, of any
+    resolution, is offered or promised (§12, §14).
+20. `MAX_AFFORDABILITY_ADJUST_STEPS` fixed at 8, backed by a property-style test sweep
+    across every whitelisted symbol and the full allowed balance/fee/spread/slippage
+    range (§2.1, §8.4); the bound may not be raised, and no tolerance constant may be
+    introduced, without separate explicit approval.
