@@ -92,4 +92,51 @@ describe("getCandles (keyless public provider)", () => {
     expect(keys).not.toContain("authorization");
     expect(keys.some((k) => k.includes("api-key") || k.includes("apikey"))).toBe(false);
   });
+
+  it("coalesces concurrent identical requests into a single fetch", async () => {
+    let resolveFetch: (value: unknown) => void;
+    const pending = new Promise((resolve) => { resolveFetch = resolve; });
+    const fetchMock = vi.fn().mockReturnValue(pending);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const call1 = getCandles("BTCUSDT", "4h", 200);
+    const call2 = getCandles("BTCUSDT", "4h", 200);
+    resolveFetch!({
+      ok: true,
+      json: async () => [[1, 10, 11, 9, 10.5, 100], [2, 11, 12, 10, 11.5, 200]],
+    });
+    const [series1, series2] = await Promise.all([call1, call2]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(series1.candles.length).toBe(2);
+    expect(series2.candles.length).toBe(2);
+  });
+
+  it("does not coalesce requests with different cache keys", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [[1, 10, 11, 9, 10.5, 100], [2, 11, 12, 10, 11.5, 200]],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await Promise.all([getCandles("BTCUSDT", "4h", 200), getCandles("ETHUSDT", "4h", 200)]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes a failed/timed-out request from in-flight so an immediate retry issues a new fetch", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [[1, 10, 11, 9, 10.5, 100], [2, 11, 12, 10, 11.5, 200]],
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = await getCandles("BTCUSDT", "4h", 200);
+    expect(first.source).toBe("insufficient");
+
+    const second = await getCandles("BTCUSDT", "4h", 200);
+    expect(second.source).toBe("live");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

@@ -57,6 +57,12 @@ interface CacheEntry {
 // Survives across requests in a warm Node runtime; per-instance in serverless.
 const candleCache = new Map<string, CacheEntry>();
 
+// In-flight coalescing: a second concurrent call for the same key reuses the
+// same pending fetch instead of issuing a duplicate network request. Cleaned up
+// unconditionally (success or failure) via .finally() below, so a failed/timed-
+// out fetch never leaves a stuck pending entry for a later caller to hang on.
+const inFlight = new Map<string, Promise<CandleSeries>>();
+
 function cacheKey(ticker: string, timeframe: Timeframe, limit: number): string {
   return `${ticker}:${timeframe}:${limit}`;
 }
@@ -87,26 +93,13 @@ function parseRow(row: unknown): Candle | null {
   return { openTime, open, high, low, close, volume };
 }
 
-/**
- * Fetch up to `limit` public candles for `symbol` (already the exchange ticker,
- * e.g. "BTCUSDT") at `timeframe`. Cache -> live -> insufficient. Never throws.
- */
-export async function getCandles(
+async function fetchAndCache(
   symbol: string,
   timeframe: Timeframe,
   limit: number,
+  key: string,
+  now: number,
 ): Promise<CandleSeries> {
-  const now = Date.now();
-  const key = cacheKey(symbol, timeframe, limit);
-
-  const cached = candleCache.get(key);
-  if (cached && now - cached.at < CACHE_TTL_MS) {
-    // Serve the cached series; mark provenance as "cache" unless it was itself a
-    // miss (insufficient), in which case keep the honest "insufficient".
-    if (cached.series.source === "insufficient") return cached.series;
-    return { ...cached.series, source: "cache", fetchedAt: cached.at };
-  }
-
   const interval = INTERVAL_MAP[timeframe];
   const url = `${KLINES_HOST}/api/v3/klines?symbol=${encodeURIComponent(
     symbol,
@@ -157,7 +150,39 @@ export async function getCandles(
   }
 }
 
-/** Test seam: clear the in-memory candle cache between cases. */
+/**
+ * Fetch up to `limit` public candles for `symbol` (already the exchange ticker,
+ * e.g. "BTCUSDT") at `timeframe`. Cache -> in-flight -> live -> insufficient.
+ * Never throws.
+ */
+export async function getCandles(
+  symbol: string,
+  timeframe: Timeframe,
+  limit: number,
+): Promise<CandleSeries> {
+  const now = Date.now();
+  const key = cacheKey(symbol, timeframe, limit);
+
+  const cached = candleCache.get(key);
+  if (cached && now - cached.at < CACHE_TTL_MS) {
+    // Serve the cached series; mark provenance as "cache" unless it was itself a
+    // miss (insufficient), in which case keep the honest "insufficient".
+    if (cached.series.source === "insufficient") return cached.series;
+    return { ...cached.series, source: "cache", fetchedAt: cached.at };
+  }
+
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+
+  const promise = fetchAndCache(symbol, timeframe, limit, key, now).finally(() => {
+    inFlight.delete(key);
+  });
+  inFlight.set(key, promise);
+  return promise;
+}
+
+/** Test seam: clear the in-memory candle cache and any in-flight requests. */
 export function __resetCandleCache(): void {
   candleCache.clear();
+  inFlight.clear();
 }
