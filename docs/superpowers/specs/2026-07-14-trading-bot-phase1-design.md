@@ -1,11 +1,16 @@
 # AI Trading Bot — Phase 1 Design (Interfaces + Mock Broker)
 
-Status: proposed, awaiting approval. Scope: **Phase 1 only** — architecture,
+Status: **approved** (2026-07-14). Scope: **Phase 1 only** — architecture,
 interfaces, and a mock broker, integrated into the existing `pixel-office`
 Next.js app. No persistence, no automation, no live trading, no broker
 credentials. Phases 2–7 (extended indicators, backtesting, persisted paper
 trading, sandbox/testnet, guarded live trading, security/monitoring) are out
 of scope for this document and for this implementation pass.
+
+All monetary values in this module (cash, notional, fees, P&L) are
+denominated in **USDT**, matching the quote currency of every
+`SUPPORTED_SYMBOLS` pair (`BTC/USDT`, `ETH/USDT`, `SOL/USDT`). There is no FX
+conversion anywhere in this module.
 
 ## 1. Context
 
@@ -65,7 +70,7 @@ module's surroundings.
   automation, limit orders, partial fills, slippage modeling, margin/leverage,
   short-selling.
 - Account reset / configurable starting balance UI (Phase 1 balance is a
-  fixed constant; see open questions).
+  fixed, named server-side constant — see §6).
 
 ## 3. Assumptions
 
@@ -77,11 +82,21 @@ module's surroundings.
   existing repo already ships other per-instance in-memory state (rate
   limiter, agents cache) with the same documented caveat, so this follows
   established precedent rather than introducing a new pattern.
-- A "Close Position" (SELL) action is in scope for Phase 1 even though it
-  wasn't in the originally-approved thin-slice UI, because requirement (4)
-  requires SELL semantics to exist and be tested. It is exposed as a second,
-  minimal, signal-independent endpoint (§7). Flagged as a scope addition —
-  see open questions.
+- A "Close Position" (SELL) action is approved as in-scope for Phase 1,
+  extending the original thin-slice UI, because it completes the long-only
+  mock position lifecycle (open via BUY, reduce/close via SELL) and lets it
+  be tested end-to-end. It is exposed as a second, minimal,
+  signal-independent endpoint (§9) and is deliberately narrow: full pipeline
+  (auth → validation → risk evaluation → idempotency/locking → `MockBroker`
+  execution → result reporting), reduce-or-close an existing long position
+  only, no naked SELL/short/leverage/margin/reversal, server-derived price
+  and quantity, and never dependent on receiving any signal (SHORT or
+  otherwise) — see §6, §9, §10.
+- Signal *age* (how long ago the signal instance the user is acting on was
+  generated) and candle *data freshness* (how current the underlying market
+  data is) are validated independently — see §5.4 and §6. A valid signal on
+  a slower timeframe (e.g. 4h) is never rejected merely because its last
+  closed candle is more than 5 minutes old.
 
 ## 4. Architecture
 
@@ -121,7 +136,8 @@ lib/trading-bot/
   strategy.ts         — Strategy interface + SignalEngineStrategy
   risk-engine.ts       — RiskEngine interface + StubRiskEngine
   pricing.ts           — shared fee/notional math used identically by RiskEngine and MockBroker
-  config.ts            — Phase 1 constants (fee rate, starting balance, freshness window)
+  freshness.ts          — shared candle-staleness check, used by both the BUY (Strategy) and SELL (MockBroker) paths
+  config.ts            — Phase 1 constants (fee rate, starting balance, signal-freshness window, candle-staleness grace)
   errors.ts            — typed rejection reasons / error codes
 app/trading-bot/
   page.tsx             — protected page
@@ -203,7 +219,8 @@ export type RejectCode =
   | "UNRECOGNIZED_SIGNAL"
   | "NON_ACTIONABLE_SIGNAL"
   | "UNSUPPORTED_SHORT"
-  | "STALE_SIGNAL"
+  | "STALE_SIGNAL"          // the signal INSTANCE the user acted on is too old (observedGeneratedAt)
+  | "STALE_CANDLE_DATA"     // the underlying market data is too old, independent of signal age
   | "INVALID_QUANTITY"
   | "MISSING_STOP_LOSS"
   | "INSUFFICIENT_FUNDS"
@@ -300,26 +317,44 @@ export interface Strategy {
 }
 ```
 
-`SignalEngineStrategy.generateIntent`:
+`SignalEngineStrategy.generateIntent` deliberately fetches candles itself
+(`getCandles`, same function `lib/trading-signals` uses internally) instead
+of calling `generateSignals` directly, because the raw `CandleSeries` (with
+each candle's `openTime`) is needed for the candle-freshness check in step 3
+— `TradingSignal` itself carries no candle timestamp.
 
 1. Parse `signalId` as `"<symbol>:<timeframe>"`. Reject
    `UNRECOGNIZED_SIGNAL` unless `symbol ∈ SUPPORTED_SYMBOLS` and
    `timeframe === DEFAULT_TIMEFRAME`.
-2. Call `generateSignals([symbol], timeframe)` from `lib/trading-signals`
-   — **live, server-side, always freshly regenerated.** The client's copy of
+2. `series = await getCandles(ticker, timeframe, CANDLE_LIMIT)` — live,
+   server-side, public/keyless (same call `generateSignals` makes
+   internally).
+3. **Candle-data-freshness check** (independent of signal age — see §6 for
+   the shared `checkCandleFreshness` helper and exact rule): if
+   `series.candles` is non-empty, run `checkCandleFreshness(series.candles,
+   timeframe, now)`. If it reports stale → reject `STALE_CANDLE_DATA`
+   *before* spending effort building a signal from data already known to be
+   too old. (An empty `series.candles`, i.e. `source: "insufficient"`, is
+   also reported as `STALE_CANDLE_DATA` by the helper — "no data" and "old
+   data" are both "can't currently trust this market data.")
+4. `signal = buildSignalFromCandles(series, nowIso)`. The client's copy of
    entry/stop/target/confidence is never read or trusted for anything other
-   than display.
-3. If `signal.direction === "WAIT"` or `signal.source === "insufficient-data"`
+   than display — this is always a fresh, server-side computation.
+5. If `signal.direction === "WAIT"` or `signal.source === "insufficient-data"`
    → reject `NON_ACTIONABLE_SIGNAL`.
-4. If `signal.direction === "SHORT"` → reject `UNSUPPORTED_SHORT` (§8: Phase 1
+6. If `signal.direction === "SHORT"` → reject `UNSUPPORTED_SHORT` (§8: Phase 1
    is long-only).
-5. Staleness check: if
+7. **Signal-instance-age check** (independent of step 3 — this bounds how
+   long ago the *specific signal the user looked at and decided to act on*
+   was generated, not how current the market data is): if
    `Date.now() - Date.parse(observedGeneratedAt) > SIGNAL_FRESHNESS_WINDOW_MS`
-   → reject `STALE_SIGNAL`. This bounds how old the signal the *user looked
-   at* may be — it is independent of step 2, which is always fresh regardless.
-6. Quantity check: `parseQuantityInput` already ran in the route; a defensive
+   (5 minutes) → reject `STALE_SIGNAL`. A signal on a slow timeframe (4h) can
+   pass this check every time it's re-submitted promptly, regardless of how
+   old its underlying candle is — the two checks measure different things
+   and neither substitutes for the other.
+8. Quantity check: `parseQuantityInput` already ran in the route; a defensive
    re-check here rejects `INVALID_QUANTITY` for `<= 0`.
-7. Otherwise construct `TradeIntent` with `side: "BUY"`, the just-regenerated
+9. Otherwise construct `TradeIntent` with `side: "BUY"`, the just-regenerated
    `sourceSignal` fields, and the validated `requestedQuantity`.
 
 ### 5.5 `RiskEngine` (`risk-engine.ts`)
@@ -353,6 +388,14 @@ the full spec (no daily loss limit, drawdown limit, exposure cap, position
 count cap, cooldown, session restriction, circuit breaker, or kill switch).
 Phase 4 replaces this file's contents, not its interface.
 
+Signal-age (`STALE_SIGNAL`) and candle-data-freshness (`STALE_CANDLE_DATA`)
+are deliberately **not** `StubRiskEngine` rules — they gate *whether a
+`TradeIntent` can be constructed or priced at all* (upstream, in `Strategy`
+for BUY; at execution time in `MockBroker` for SELL, since SELL has no
+`Strategy` call), not whether an already-well-formed intent is an acceptable
+size/risk. `StubRiskEngine` only ever sees intents built from data already
+known to be fresh.
+
 ### 5.6 Shared pricing math (`pricing.ts`)
 
 Used identically by `StubRiskEngine` (to estimate cost before approval) and
@@ -364,6 +407,49 @@ export function estimateOrderCost(notional: Decimal, feeRate: Decimal): Decimal;
 ```
 
 ## 6. `MockBroker` — semantics and math
+
+**Configuration constants (`lib/trading-bot/config.ts`)** — named, not
+inlined, so later phases can change them without touching execution logic:
+
+```ts
+export const PAPER_STARTING_BALANCE_USDT = new Decimal("10000.00");
+export const MOCK_FEE_RATE = new Decimal("0.001"); // 0.1%, applied identically to BUY notional and SELL proceeds
+export const SIGNAL_FRESHNESS_WINDOW_MS = 5 * 60_000; // 5 minutes — signal INSTANCE age
+```
+
+`MOCK_FEE_RATE` is read from this single constant everywhere a fee is
+computed: `pricing.ts#estimateOrderCost` (used by `StubRiskEngine`), the
+`MockBroker` BUY and SELL execution paths below, and every test fixture —
+there is no second, independently-maintained fee number anywhere.
+
+**Shared candle-freshness check (`freshness.ts`)** — used by both the BUY
+path (`Strategy`, §5.4 step 3) and the SELL path (this section, "Execution —
+SELL" step 1):
+
+```ts
+export const TIMEFRAME_DURATION_MS: Record<Timeframe, number> = {
+  "1h": 60 * 60_000,
+  "4h": 4 * 60 * 60_000,
+  "1d": 24 * 60 * 60_000,
+};
+export const CANDLE_STALENESS_GRACE_MS = 5 * 60_000; // small documented grace period
+
+export function checkCandleFreshness(
+  candles: Candle[],
+  timeframe: Timeframe,
+  now: number,
+): { ok: true } | { ok: false; code: "STALE_CANDLE_DATA"; reason: string };
+```
+
+Rule: let `last = candles[candles.length - 1]`. Stale
+(`STALE_CANDLE_DATA`) when `candles` is empty, **or** when
+`now - last.openTime > TIMEFRAME_DURATION_MS[timeframe] +
+CANDLE_STALENESS_GRACE_MS` — i.e. the most recent candle must have opened
+within one full timeframe interval plus the grace period. For `"4h"` this is
+a ~4h05m ceiling on candle age, entirely independent of the 5-minute
+`SIGNAL_FRESHNESS_WINDOW_MS` signal-instance-age check in §5.4 step 7. A
+signal is never rejected under this rule merely for being "more than five
+minutes old" — that number governs signal age, not candle age.
 
 **Deployment-safety caveat (documented at the top of `store.ts` and in this
 spec):** `store.ts` holds a module-scoped `Map<userId, MockAccount>`. This
@@ -386,9 +472,13 @@ lookup path exists anywhere in `lib/trading-bot/`. `getAccount`,
 non-optional parameter (never inferred from a global/module-level "current
 user").
 
-**Long-only invariant:** a `SELL` may only ever reduce an existing position.
-There is no path to open a negative/short position, and no leverage or
-margin concept exists in Phase 1.
+**Long-only invariant:** a `SELL` may only ever reduce or fully close an
+existing long position for that user+symbol. There is no naked SELL, no
+short-selling, no leverage, no margin, no position reversal, and no negative
+position quantity anywhere in Phase 1 — a `SELL` whose `requestedQuantity`
+would take `position.quantity` below zero (including when no position exists
+at all) is rejected (`INSUFFICIENT_POSITION` / `NO_OPEN_POSITION`), never
+clamped or partially honored.
 
 **Execution — BUY (from a `TradeIntent` approved by `StubRiskEngine`):**
 
@@ -413,16 +503,20 @@ margin concept exists in Phase 1.
    `status: "FILLED"`.
 
 **Execution — SELL (close position; no signal, no `StubRiskEngine` cash
-check, only the position-quantity check):**
+check — only the position-quantity check, StubRiskEngine rule 3, which needs
+no price and runs before any candle fetch):**
 
-1. `executionPrice` = last candle close from `getCandles(...)` (the same
-   keyless public candle source `lib/trading-signals` already uses — **not**
-   the Portfolio module's `MarketDataService`, which is keyed by a different
-   `Asset`/symbol universe (`"BTC"` + `AssetType`, Finnhub/CoinGecko) and must
-   not be conflated with the trading-signals `"BTC/USDT"` MEXC-ticker
-   universe). If candles are unavailable (`source: "insufficient"`) → reject
-   `NON_ACTIONABLE_SIGNAL` with reason "no market data available to price
-   the close" (no fabricated price).
+1. Fetch `series = await getCandles(ticker, timeframe, CANDLE_LIMIT)` — the
+   same keyless public candle source `lib/trading-signals` already uses,
+   using `DEFAULT_TIMEFRAME`. **Not** the Portfolio module's
+   `MarketDataService`, which is keyed by a different `Asset`/symbol universe
+   (`"BTC"` + `AssetType`, Finnhub/CoinGecko) and must not be conflated with
+   the trading-signals `"BTC/USDT"` MEXC-ticker universe. Run
+   `checkCandleFreshness(series.candles, timeframe, now)` — if stale or empty
+   → reject `STALE_CANDLE_DATA` (no fabricated price; no mutation). This is
+   the same shared check the BUY path runs, applied here because SELL has no
+   `Strategy` call to have already run it. Otherwise `executionPrice` = the
+   last candle's `close`.
 2. `proceeds = executionPrice * requestedQuantity`;
    `fee = proceeds * MOCK_FEE_RATE`; `netProceeds = proceeds - fee`.
 3. `realizedPnl = (executionPrice - position.avgEntryPrice) *
@@ -446,10 +540,10 @@ validated on input to at most 10 decimal places (matching
 independently re-rounded.
 
 **Rejections never throw.** Every expected paper-trading outcome (missing
-stop, insufficient funds, insufficient position, no candles) returns
-`{ status: "REJECTED", reasonCode, reason }`. Only malformed input (caught
-earlier, at the route/DTO boundary) or a genuine unexpected fault produces an
-HTTP 4xx/5xx.
+stop, insufficient funds, insufficient position, stale or unavailable candle
+data) returns `{ status: "REJECTED", reasonCode, reason }`. Only malformed
+input (caught earlier, at the route/DTO boundary) or a genuine unexpected
+fault produces an HTTP 4xx/5xx.
 
 ## 7. Idempotency and concurrency
 
@@ -530,7 +624,11 @@ Request body:
   a rejection is a valid, fully-handled response, not a server error.
   `status`/`reasonCode` distinguish `FILLED` from each `RejectCode` in §5.1
   (`UNRECOGNIZED_SIGNAL`, `NON_ACTIONABLE_SIGNAL`, `UNSUPPORTED_SHORT`,
-  `STALE_SIGNAL`, `MISSING_STOP_LOSS`, `INSUFFICIENT_FUNDS`, etc.).
+  `STALE_SIGNAL`, `STALE_CANDLE_DATA`, `MISSING_STOP_LOSS`,
+  `INSUFFICIENT_FUNDS`, etc.). `STALE_SIGNAL` and `STALE_CANDLE_DATA` are
+  reported as distinct codes with distinct `reason` text — a caller can tell
+  "your view of the signal is old, refresh it" apart from "the market data
+  itself is currently stale."
 - 401 unauthenticated. 429 rate-limited.
 
 ### `POST /api/trading-bot/positions/close` (SELL, position-driven)
@@ -546,12 +644,27 @@ Request body:
 ```
 
 - Same auth/rate-limit bucket (`tradingBotWrite`) as the orders route.
-- No `signalId` — closing a position needs no signal justification. Server
-  still derives `TradeIntent { side: "SELL", sourceSignal: undefined }` and
-  routes it through the same `StubRiskEngine` → `MockBroker` pipeline (§4),
-  satisfying "no route bypasses the pipeline."
+- No `signalId` field exists on this request, and this route never imports
+  or calls anything from `lib/trading-signals` (no `generateSignals`, no
+  `buildSignalFromCandles`) — closing a position is unconditionally
+  independent of any signal, **including a SHORT signal**: there is no code
+  path by which receiving or observing a SHORT signal is required, checked,
+  or even consulted before a close is allowed.
+- `symbol` is a **selector into the user's own tracked positions**, not
+  client-trusted pricing/sizing data: the server looks it up in that user's
+  `MockAccount.positions` map and rejects `NO_OPEN_POSITION` if the user
+  holds none for that symbol. Available quantity (for the
+  `INSUFFICIENT_POSITION` check) and execution price (§6, from a fresh
+  candle close) are always server-derived — the request never carries either.
+- Full pipeline, same as the orders route: `requireUser()` → body validation
+  → `withUserLock(userId, ...)` → idempotency-cache check → `StubRiskEngine`
+  rule 3 (quantity ≤ held) → `MockBroker` execution (candle-freshness check,
+  price lookup, fee/P&L math, mutation) → result recorded under the
+  idempotency key → `OrderResultDTO` response. No step is skipped or
+  short-circuited for this route relative to the orders route.
 - 400 malformed body. 200 → `OrderResultDTO`
-  (`INSUFFICIENT_POSITION`/`NO_OPEN_POSITION`/`FILLED`). 401/429 as above.
+  (`INSUFFICIENT_POSITION`/`NO_OPEN_POSITION`/`STALE_CANDLE_DATA`/`FILLED`).
+  401/429 as above.
 
 ## 10. Page behavior (`app/trading-bot/page.tsx`)
 
@@ -569,20 +682,26 @@ Request body:
 - `SHORT` signals render as visibly disabled ("not supported in Phase 1"),
   no order control.
 - Account panel from `GET /api/trading-bot/account`; each open position has
-  a "Close" control wired to the close-position route with its own
-  quantity input (defaulting to, but editable below, the full held
-  quantity).
+  a "Close" control wired to the close-position route. Its quantity input
+  **defaults to the full held position quantity** (a one-click full close is
+  the primary path); the value is editable down for a partial close, but
+  Phase 1 deliberately does not build an advanced order ticket — no limit
+  price, no order-type selector, no time-in-force, no partial-fill
+  simulation. This control never reads or depends on any signal (SHORT or
+  otherwise) to become available — it is enabled whenever the user holds a
+  position, full stop.
 - All monetary values rendered from the string DTOs directly (formatted for
   display only in the component; no arithmetic performed client-side, no
   `@prisma/client` import in any client component).
 
 ## 11. Safety boundary
 
-- `lib/trading-bot/**` may import `lib/trading-signals`'s **types and pure
-  functions only** (`generateSignals`, `TradingSignal`, `Timeframe`,
-  `SUPPORTED_SYMBOLS`, `DEFAULT_TIMEFRAME`) and `lib/market-data/candles`'s
-  `getCandles` (also keyless/public). It must never import
-  `lib/exchanges/mexc.ts` or reference `MEXC_API_KEY`/`MEXC_API_SECRET`.
+- `lib/trading-bot/**` may import `lib/trading-signals`'s **types, config,
+  and pure functions only** (`buildSignalFromCandles`, `TradingSignal`,
+  `Timeframe`, `SUPPORTED_SYMBOLS`, `SYMBOL_WHITELIST`, `DEFAULT_TIMEFRAME`,
+  `CANDLE_LIMIT`) and `lib/market-data/candles`'s `getCandles` (also
+  keyless/public). It must never import `lib/exchanges/mexc.ts` or reference
+  `MEXC_API_KEY`/`MEXC_API_SECRET`.
 - No broker credential field, connection settings, live-mode flag/toggle, or
   environment variable for a real broker exists anywhere in Phase 1 code —
   not even a disabled one. The concept does not exist yet, so it cannot be
@@ -655,8 +774,10 @@ the existing `trading-signals-engine.test.ts`):
    over-precision (`> 10dp`), and non-string JSON types (number, null,
    object) are all rejected by `parseQuantityInput` before reaching any
    broker/risk logic.
-10. Stale signal rejection: `observedGeneratedAt` older than
-    `SIGNAL_FRESHNESS_WINDOW_MS` → `STALE_SIGNAL`, no order created.
+10. Stale signal-instance rejection: `observedGeneratedAt` older than
+    `SIGNAL_FRESHNESS_WINDOW_MS` (5 min) → `STALE_SIGNAL`, no order created —
+    using a fixture whose *candle* data is fresh, isolating this check from
+    candle freshness.
 11. Unsupported SHORT rejection: a signal fixture returning `SHORT` →
     `UNSUPPORTED_SHORT`, no `TradeIntent` constructed (assert via a spy that
     `MockBroker.placeOrder` is never called).
@@ -676,18 +797,60 @@ the existing `trading-signals-engine.test.ts`):
     `DEFAULT_TIMEFRAME` → `UNRECOGNIZED_SIGNAL`.
 17. Pipeline-integrity: assert (via spies on `Strategy`/`RiskEngine`) that
     the orders route always calls them in order, and that a `RiskEngine`
-    rejection results in **zero** calls to `MockBroker.placeOrder`.
+    rejection results in **zero** calls to `MockBroker.placeOrder`. The same
+    assertion repeated for the close-position route against
+    `StubRiskEngine`/`MockBroker` (it has no `Strategy` call to spy on).
+18. Candle-staleness rejection (BUY): a fixture with a *fresh* signal
+    instance (`observedGeneratedAt` within the 5-minute window) but a last
+    candle `openTime` older than `TIMEFRAME_DURATION_MS["4h"] +
+    CANDLE_STALENESS_GRACE_MS` → `STALE_CANDLE_DATA`, no order created. Confirms
+    this check fires independently of `STALE_SIGNAL`.
+19. Old-candle-but-valid-signal is NOT rejected (BUY): a 4h signal whose last
+    candle is, e.g., 3 hours old (comfortably inside the ~4h05m ceiling) and
+    whose `observedGeneratedAt` is within 5 minutes → proceeds to `FILLED`,
+    proving a valid 4h signal is never rejected merely for being "more than
+    five minutes old" by candle-clock time.
+20. Candle-staleness rejection (SELL): same rule, exercised on the
+    close-position path using its own `getCandles` call.
+21. Close Position never touches the signal engine: assert (via a module
+    mock/spy on `lib/trading-signals`) that `generateSignals` and
+    `buildSignalFromCandles` are called **zero** times anywhere in the
+    close-position route's execution, for both a SHORT-signal fixture and a
+    no-signal-available fixture — closing is unconditionally independent of
+    signal state.
+22. Close Position full-close-by-default: a close request with
+    `requestedQuantity` equal to the full held quantity removes the position
+    from `MockAccount.positions` entirely and credits `realizedPnl`
+    correctly; a smaller `requestedQuantity` reduces `quantity` while
+    leaving `avgEntryPrice` on the remainder unchanged (standard
+    average-cost partial-close accounting).
+23. Naked/negative-position rejection: a SELL for a symbol with no existing
+    position, and a SELL whose quantity exceeds the held quantity, both
+    reject before any mutation (`NO_OPEN_POSITION` /
+    `INSUFFICIENT_POSITION`) — no position ever goes negative.
 
-## 15. Open questions (flagged for confirmation, not yet decided)
+## 15. Resolved decisions (superseding the prior "open questions")
 
-- **Starting paper balance:** proposing a fixed constant, `$10,000` (no
-  reset/configuration UI in Phase 1 — that's explicitly Phase 4).
-- **Mock fee rate:** proposing a flat `0.1%` (`MOCK_FEE_RATE = 0.001`) on both
-  BUY notional and SELL proceeds.
-- **Signal freshness window:** proposing `SIGNAL_FRESHNESS_WINDOW_MS = 5 *
-  60_000` (5 minutes) — long enough for a user to read a signal and act, short
-  enough to prevent orders against a long-stale browser tab.
-- **Scope addition — Close Position:** confirm that adding the
-  signal-independent SELL/close endpoint (§9) is acceptable as part of Phase
-  1, since it extends the originally-approved "thin vertical slice" scope
-  slightly to satisfy requirement (4)'s SELL semantics.
+All four items previously flagged for confirmation were reviewed and
+approved on 2026-07-14:
+
+1. **Starting paper balance:** fixed at `10,000.00 USDT`, held as the named
+   constant `PAPER_STARTING_BALANCE_USDT` (§6) — changeable later without
+   touching execution logic. No reset/configuration UI in Phase 1 (Phase 4).
+2. **Mock fee rate:** flat `0.1%` (`MOCK_FEE_RATE = 0.001`), applied
+   identically to BUY notional and SELL proceeds via the single shared
+   `pricing.ts` constant reference — used by `StubRiskEngine`, `MockBroker`,
+   account/equity calculations, and every test fixture.
+3. **Signal freshness:** the 5-minute `SIGNAL_FRESHNESS_WINDOW_MS` ceiling on
+   signal-*instance* age is approved, and is explicitly independent of a
+   separate timeframe-aware candle-*data* freshness rule
+   (`TIMEFRAME_DURATION_MS[timeframe] + CANDLE_STALENESS_GRACE_MS`, §6). Both
+   are validated on every BUY; the SELL path validates candle freshness only
+   (it has no signal instance to age-check).
+4. **Close Position scope:** approved as narrowly specified in §3, §6, §9,
+   and §10 — reduce/close-only, long-only, server-derived
+   symbol-as-selector/quantity/price, full pipeline enforcement, default-to-
+   full-close UI with no advanced order ticket, and no dependency on any
+   signal (including SHORT).
+
+No open questions remain for Phase 1.
