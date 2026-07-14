@@ -1,11 +1,19 @@
 # AI Trading Bot — Phase 1 Design (Interfaces + Mock Broker)
 
-Status: **approved** (2026-07-14). Scope: **Phase 1 only** — architecture,
-interfaces, and a mock broker, integrated into the existing `pixel-office`
-Next.js app. No persistence, no automation, no live trading, no broker
-credentials. Phases 2–7 (extended indicators, backtesting, persisted paper
-trading, sandbox/testnet, guarded live trading, security/monitoring) are out
-of scope for this document and for this implementation pass.
+Status: **Implementation complete; authenticated interactive acceptance pending**
+(2026-07-14). All 16 implementation-plan tasks are built and committed; the full
+automated suite passes (218/218 tests, clean typecheck, clean lint, clean build,
+clean static safety scan). The authenticated browser workflow has not yet been
+exercised by a human — see
+`docs/superpowers/specs/2026-07-14-trading-bot-phase1-acceptance-checklist.md`.
+Phase 1 is fully accepted only once that checklist passes.
+
+Scope: **Phase 1 only** — architecture, interfaces, and a mock broker,
+integrated into the existing `pixel-office` Next.js app. No persistence, no
+automation, no live trading, no broker credentials. Phases 2–7 (extended
+indicators, backtesting, persisted paper trading, sandbox/testnet, guarded
+live trading, security/monitoring) are out of scope for this document and for
+this implementation pass.
 
 All monetary values in this module (cash, notional, fees, P&L) are
 denominated in **USDT**, matching the quote currency of every

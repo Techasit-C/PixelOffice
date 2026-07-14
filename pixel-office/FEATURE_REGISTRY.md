@@ -103,6 +103,11 @@ team. Node runtime (reads the filesystem). The `AgentsResponse` contract in
 
 ## Trading Bot — `/trading-bot` (Phase 1)
 
+**Status: Implementation complete; authenticated interactive acceptance pending.**
+All automated tests/typecheck/lint/build/safety-scan pass; the authenticated browser
+workflow (sign-in → BUY → close, etc.) has not yet been exercised by a human. See
+`docs/superpowers/specs/2026-07-14-trading-bot-phase1-acceptance-checklist.md`.
+
 A paper-trading demo built on top of the existing read-only signal engine. **Mock
 only** — no real broker, no real money, no persistence. Full design:
 `docs/superpowers/specs/2026-07-14-trading-bot-phase1-design.md`.
@@ -123,11 +128,12 @@ only** — no real broker, no real money, no persistence. Full design:
   (`lib/market-data/candles.ts`) — no new provider, no credentials. Account state
   starts at a fixed `10,000.00 USDT` paper balance (**Mock**, always).
 - **Caveats (honest, not defects):**
-  - **In-memory, single-process only.** `lib/trading-bot/store.ts` holds a
-    module-scoped `Map<userId, MockAccount>` — correct in a single warm Node
-    process (local dev), **not safe on serverless/multi-instance deployment**.
-    State resets on every server restart. No database persistence exists yet
-    (Phase 4).
+  - **In-memory, single-process only — NOT deployment-safe, NOT production-ready.**
+    `lib/trading-bot/store.ts` holds a module-scoped `Map<userId, MockAccount>`. It
+    is a Phase 1 development aid, correct only in a single warm Node process (local
+    dev). It is **not safe on serverless/multi-instance deployment** and must not be
+    treated as a production data store. State resets on every server restart. No
+    database persistence exists yet (Phase 4).
   - Idempotency (duplicate-submission protection) is enforced via a per-user
     in-process lock — protects within one Node process only, not across instances.
   - `StubRiskEngine` implements exactly 4 rules; the full risk engine (daily loss
