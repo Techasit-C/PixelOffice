@@ -145,6 +145,70 @@ only** — no real broker, no real money, no persistence. Full design:
   `lib/trading-bot/**` and `app/api/trading-bot/**` and fails the suite if any file
   imports `lib/exchanges/*` or references broker credentials / a live-mode identifier.
 
+## Trading Bot — Extended Signal Analysis (Phase 2)
+
+**Status: Implementation complete; authenticated interactive acceptance pending.**
+All automated tests/typecheck/lint/build/safety-scan pass; the authenticated
+browser workflow has not yet been exercised by a human. See
+`docs/superpowers/specs/2026-07-14-trading-bot-phase2-acceptance-checklist.md`.
+
+Extends the existing `lib/trading-signals/` engine — used by both the
+`/trading-signals` display route and `SignalEngineStrategy` (the order path) —
+with MACD, Bollinger Bands, and multi-timeframe (1h/1d confirming 4h)
+confidence enrichment. Full design:
+`docs/superpowers/specs/2026-07-14-trading-bot-phase2-signals-design.md`.
+
+- **Files:** `lib/trading-signals/{macd,bollinger,candle-closed,multi-timeframe,
+  enrichment,explanation}.ts` (new), `indicators.ts` (additive `emaSeries()`),
+  `engine.ts`/`types.ts`/`config.ts` (extended), `lib/market-data/candles.ts`
+  (in-flight request dedup), `lib/trading-bot/strategy.ts` (confirmation-fetch
+  parity).
+- **Architecture:** enrichment is an additive second pass
+  (`applyPhase2Enrichment`), wired between the existing, unmodified
+  `detectSetup()` and `riskGate()` — it can change only `confidence` and
+  `reasoning`, never direction, entry zone, stop loss, take profit, primary
+  target, risk/reward, suggested entry, or quality status. A pinned snapshot
+  test (`trading-signals-detect-setup-baseline.test.ts`) proves `detectSetup()`
+  itself is untouched.
+- **Closed-candle and staleness detection:** every fetched series (primary and
+  both confirmation timeframes) has trailing unclosed candles dropped before
+  any indicator math runs, and is checked for staleness measured from when the
+  *next* candle's close was expected — not from the last candle's own open
+  time (a corrected formula; the naive version would falsely flag data stale
+  within minutes of a new candle forming). Primary staleness → WAIT.
+  Confirmation staleness/unavailability → `UNAVAILABLE`, degrades gracefully,
+  never blocks the primary signal.
+- **Multi-timeframe confirmation:** an exhaustive 16-state table (1h × 1d ∈
+  {ALIGNED, NEUTRAL, UNAVAILABLE, OPPOSITE}) → a confidence adjustment of −15
+  (any conflict, applied once even if both timeframes conflict), +15 (both
+  aligned), +5 (one aligned), or 0.
+- **Confidence is a heuristic score, not a probability of profit** — labeled
+  as such everywhere: the UI, `plainLanguageSummary`, and this document. A
+  documented, deliberate tradeoff: Phase 2 contributors are appended on top of
+  the existing v1 formula rather than rebalancing it, so strong setups cluster
+  near the 100-point ceiling.
+- **`plainLanguageSummary`:** deterministic, template-generated from actual
+  computed diagnostic states — never an LLM, never free text, never a profit
+  promise or guarantee (mechanically enforced by a banned-word test).
+- **Order-path parity:** `SignalEngineStrategy.generateIntent` now fetches the
+  same 1h/1d confirmation data the display path uses, so an order can never
+  silently reject for using less information than what the user was shown.
+  Its public `Strategy` interface and `SourceSignal` type are unchanged.
+- **`SHORT` remains visible but non-executable** — unchanged from Phase 1.
+- **Provider request handling:** `lib/market-data/candles.ts` gained in-flight
+  request coalescing (a concurrent identical request reuses the same pending
+  fetch rather than issuing a duplicate) on top of its existing 60s
+  completed-response cache; a failed/timed-out request is always removed from
+  the in-flight map. Fetches across a `generateSignals()` cycle (up to 3
+  symbols × 3 timeframes) are bounded to `MAX_CONCURRENT_CANDLE_FETCHES=6`
+  concurrent requests.
+- **Caveats (honest, not defects):** same in-memory/single-process limitation
+  as Phase 1 applies to the candle cache — it is a per-instance shield, not a
+  distributed guarantee. No backtesting, no persistence, no live trading —
+  unchanged from Phase 1.
+- **Safety test:** `trading-signals-safety.test.ts`'s existing file-glob
+  automatically covers every new Phase 2 file with zero test-file changes.
+
 ## Configuration (environment variables)
 
 New optional variables introduced in Sprint 5 — documented in `.env.example`, all

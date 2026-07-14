@@ -10,6 +10,38 @@ dashboard surfaces layered additively over the data the app already produces, wh
 preserving the original Pixel Office architecture and the Portfolio and Trading
 modules.
 
+## Implementation complete — acceptance pending
+
+### AI Trading Bot — Phase 2, Extended Signal Analysis (2026-07-14)
+
+**Status: Implementation complete; authenticated interactive acceptance
+pending.** All automated gates pass (300/300 tests, clean typecheck, clean
+lint, clean build, static safety scan). The authenticated browser workflow
+has not yet been exercised by a human — see the acceptance checklist in
+`docs/superpowers/specs/2026-07-14-trading-bot-phase2-acceptance-checklist.md`.
+This entry moves to `## Completed` only once that checklist passes.
+
+MACD, Bollinger Bands, multi-timeframe (1h/1d) confirmation, corrected
+closed-candle/staleness detection, in-flight candle-request coalescing, and
+deterministic plain-language explanations, per the approved design
+(`docs/superpowers/specs/2026-07-14-trading-bot-phase2-signals-design.md`)
+and implementation plan
+(`docs/superpowers/plans/2026-07-14-trading-bot-phase2-signals.md`). See
+`FEATURE_REGISTRY.md` for full detail.
+
+- Enrichment is an additive pass that can change only confidence/reasoning —
+  `detectSetup()` is provably unchanged (pinned baseline snapshot).
+- One existing engine fixture's final signal intentionally moved from LONG to
+  WAIT (a documented confidence-gate crossing, not a defect) — see
+  `tests/trading-signals-engine.test.ts` for the full point-by-point
+  breakdown. All 7 other fixtures unchanged.
+- `SignalEngineStrategy` now uses the same three-timeframe view as the
+  displayed signal (order-time parity fix) without changing its public
+  interface or the `SourceSignal` type.
+- **Not included yet (deferred, see Backlog):** backtesting, database
+  persistence, the full risk-rule set, live trading, broker credentials,
+  bot automation — unchanged from Phase 1.
+
 ## Completed
 
 ### AI Trading Bot — Phase 1 ✅ (2026-07-14)
@@ -74,14 +106,14 @@ These were explicitly deferred during Sprint 5 and are captured for future plann
 - **Keep `lib/agents/teams.ts` in sync with `CLAUDE.md`.** Ensure the team lists the
   API groups agents into stay aligned with the canonical team roster defined in the
   project `CLAUDE.md`.
-- **AI Trading Bot Phase 2+.** Extended indicators (MACD, Bollinger Bands,
-  multi-timeframe confirmation) on top of the existing signal engine; Phase 3
-  backtesting with look-ahead/leakage prevention; Phase 4 persisted paper trading
-  (`Order`/`Fill`/`Position`/`RiskProfile` Prisma models replacing the in-memory
-  store) and the full risk-rule set (daily loss limit, drawdown, exposure caps,
-  cooldown, circuit breakers, kill switch); Phase 5 sandbox/testnet broker
-  integration (requires explicit provider authorization); Phase 6 guarded live
-  trading (requires a separate explicit authorization after Phase 4/5 review);
-  Phase 7 security/monitoring/deployment hardening. Each phase requires its own
-  brainstorming → spec → plan cycle before implementation, per the approved Phase 1
-  process.
+- **AI Trading Bot Phase 3+.** Phase 3 backtesting with look-ahead/leakage
+  prevention; Phase 4 persisted paper trading (`Order`/`Fill`/`Position`/
+  `RiskProfile` Prisma models replacing the in-memory store) and the full
+  risk-rule set (daily loss limit, drawdown, exposure caps, cooldown, circuit
+  breakers, kill switch); Phase 5 sandbox/testnet broker integration (requires
+  explicit provider authorization); Phase 6 guarded live trading (requires a
+  separate explicit authorization after Phase 4/5 review); Phase 7 security/
+  monitoring/deployment hardening. Each phase requires its own brainstorming →
+  spec → plan cycle before implementation, per the approved process. (Phase 2,
+  extended indicators/multi-timeframe confirmation, is implemented — see
+  Implementation-complete section above.)
