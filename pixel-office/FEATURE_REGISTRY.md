@@ -147,10 +147,11 @@ only** — no real broker, no real money, no persistence. Full design:
 
 ## Trading Bot — Extended Signal Analysis (Phase 2)
 
-**Status: Implementation complete; authenticated interactive acceptance pending.**
-All automated tests/typecheck/lint/build/safety-scan pass; the authenticated
-browser workflow has not yet been exercised by a human. See
-`docs/superpowers/specs/2026-07-14-trading-bot-phase2-acceptance-checklist.md`.
+**Status: Accepted (2026-07-14).** All automated tests/typecheck/lint/build/
+safety-scan pass, and the authenticated interactive acceptance checklist
+(`docs/superpowers/specs/2026-07-14-trading-bot-phase2-acceptance-checklist.md`)
+was completed by the repository owner — all 7 items passed, no unexpected
+browser-console errors.
 
 Extends the existing `lib/trading-signals/` engine — used by both the
 `/trading-signals` display route and `SignalEngineStrategy` (the order path) —

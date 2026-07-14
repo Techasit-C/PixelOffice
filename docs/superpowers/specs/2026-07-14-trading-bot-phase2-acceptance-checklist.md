@@ -1,19 +1,20 @@
 # AI Trading Bot — Phase 2 Acceptance Checklist
 
-Status of the implementation this checklist gates: **Implementation complete;
-authenticated interactive acceptance pending.** All automated gates already
-pass (300/300 tests, clean typecheck, clean lint, clean build, clean static
-safety scan — see `docs/superpowers/specs/2026-07-14-trading-bot-phase2-signals-design.md`
+**Status: Accepted (2026-07-14).** All 7 items below were completed by the
+repository owner on 2026-07-14 and passed — diagnostic consistency,
+heuristic-confidence labeling, SHORT remaining non-executable, the LONG
+paper-trading flow, restart reset behavior, and browser-console verification.
+No unexpected errors were observed. All automated gates also passed (300/300
+tests, clean typecheck, clean lint, clean build, clean static safety scan —
+see `docs/superpowers/specs/2026-07-14-trading-bot-phase2-signals-design.md`
 and `docs/superpowers/plans/2026-07-14-trading-bot-phase2-signals.md` for the
-full verification record). This checklist covers the one thing automation in
-this environment could not exercise: an authenticated human walking the real
-browser flow end to end, on top of Phase 1's already-accepted flow.
+full verification record).
 
-**Phase 2 is fully accepted only when every item below passes.** If any item
-fails, it is a Phase 2 defect: fix only that defect, add an automated
-regression test where practical, rerun the full verification suite (`npm
-test`, `npx tsc --noEmit`, `npm run lint`, `npm run build`), and re-request
-acceptance — do not expand scope or add functionality while fixing a failure.
+If a regression is ever found against this accepted checklist in the future,
+treat it as a defect: fix only that defect, add an automated regression test
+where practical, rerun the full verification suite (`npm test`, `npx tsc
+--noEmit`, `npm run lint`, `npm run build`), and re-request acceptance — do
+not expand scope or add functionality while fixing a failure.
 
 ## How to run this checklist
 
@@ -106,11 +107,8 @@ confirmation "console clear."
 
 ---
 
-## Reporting results
+## Result
 
-For each item, record pass/fail, evidence captured, and — for any failure —
-enough detail (request/response bodies, console stack trace, exact steps) to
-reproduce it. Phase 2 moves from "Implementation complete; authenticated
-interactive acceptance pending" to fully accepted (and `ROADMAP.md`'s entry
-moves from "Implementation complete — acceptance pending" to "Completed")
-only after all seven items report pass.
+All seven items passed on 2026-07-14. Phase 2 is fully accepted.
+`ROADMAP.md`'s entry has moved from "Implementation complete — acceptance
+pending" to "Completed."

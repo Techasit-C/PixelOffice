@@ -10,16 +10,16 @@ dashboard surfaces layered additively over the data the app already produces, wh
 preserving the original Pixel Office architecture and the Portfolio and Trading
 modules.
 
-## Implementation complete — acceptance pending
+## Completed
 
-### AI Trading Bot — Phase 2, Extended Signal Analysis (2026-07-14)
+### AI Trading Bot — Phase 2, Extended Signal Analysis ✅ (2026-07-14)
 
-**Status: Implementation complete; authenticated interactive acceptance
-pending.** All automated gates pass (300/300 tests, clean typecheck, clean
-lint, clean build, static safety scan). The authenticated browser workflow
-has not yet been exercised by a human — see the acceptance checklist in
-`docs/superpowers/specs/2026-07-14-trading-bot-phase2-acceptance-checklist.md`.
-This entry moves to `## Completed` only once that checklist passes.
+**Status: Accepted.** All automated gates pass (300/300 tests, clean
+typecheck, clean lint, clean build, static safety scan), and the
+authenticated interactive acceptance checklist
+(`docs/superpowers/specs/2026-07-14-trading-bot-phase2-acceptance-checklist.md`)
+was completed by the repository owner — all 7 items passed, no unexpected
+browser-console errors.
 
 MACD, Bollinger Bands, multi-timeframe (1h/1d) confirmation, corrected
 closed-candle/staleness detection, in-flight candle-request coalescing, and
@@ -40,9 +40,8 @@ and implementation plan
   interface or the `SourceSignal` type.
 - **Not included yet (deferred, see Backlog):** backtesting, database
   persistence, the full risk-rule set, live trading, broker credentials,
-  bot automation — unchanged from Phase 1.
-
-## Completed
+  bot automation — unchanged from Phase 1. Phase 3 requires a separate
+  design and explicit approval before work begins.
 
 ### AI Trading Bot — Phase 1 ✅ (2026-07-14)
 
@@ -115,5 +114,5 @@ These were explicitly deferred during Sprint 5 and are captured for future plann
   separate explicit authorization after Phase 4/5 review); Phase 7 security/
   monitoring/deployment hardening. Each phase requires its own brainstorming →
   spec → plan cycle before implementation, per the approved process. (Phase 2,
-  extended indicators/multi-timeframe confirmation, is implemented — see
-  Implementation-complete section above.)
+  extended indicators/multi-timeframe confirmation, is accepted — see
+  Completed section above.)
