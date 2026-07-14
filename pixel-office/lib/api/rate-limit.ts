@@ -83,7 +83,13 @@ class NoopRateLimiter implements RateLimiter {
 // destructively; provider-hitting reads must be capped to protect upstream quotas;
 // agentsRead caps the (cheap, cached) /api/agents roster read per user; signalsRead
 // caps the /api/tradingview-webhook GET (alert dashboard read) per user.
-export type RateLimitBucket = "write" | "providerRead" | "agentsRead" | "signalsRead";
+export type RateLimitBucket =
+  | "write"
+  | "providerRead"
+  | "agentsRead"
+  | "signalsRead"
+  | "tradingBotRead"
+  | "tradingBotWrite";
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -110,7 +116,11 @@ function limiterFor(bucket: RateLimitBucket): RateLimiter {
         ? envInt("RATE_LIMIT_AGENTS_MAX", 30)
         : bucket === "signalsRead"
           ? envInt("RATE_LIMIT_SIGNALS_MAX", 60)
-          : envInt("RATE_LIMIT_READ_MAX", 60);
+          : bucket === "tradingBotRead"
+            ? envInt("RATE_LIMIT_TRADING_BOT_READ_MAX", 60)
+            : bucket === "tradingBotWrite"
+              ? envInt("RATE_LIMIT_TRADING_BOT_WRITE_MAX", 20)
+              : envInt("RATE_LIMIT_READ_MAX", 60);
 
   const created: RateLimiter = DISABLED
     ? new NoopRateLimiter()
