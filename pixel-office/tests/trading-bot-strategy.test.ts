@@ -142,3 +142,23 @@ describe("SignalEngineStrategy.generateIntent", () => {
     }
   });
 });
+
+describe("SignalEngineStrategy — confirmation-fetch parity", () => {
+  it("fetches primary, 1h, and 1d candles before calling buildSignalFromCandles", async () => {
+    vi.mocked(getCandles).mockResolvedValue(freshSeries());
+    vi.mocked(buildSignalFromCandles).mockReturnValue(longSignal() as never);
+    await signalEngineStrategy.generateIntent("user-1", "BTC/USDT:4h", NOW_ISO, new Prisma.Decimal("1"));
+    const requestedTimeframes = vi.mocked(getCandles).mock.calls.map((call) => call[1]);
+    expect(requestedTimeframes).toEqual(expect.arrayContaining(["4h", "1h", "1d"]));
+  });
+
+  it("passes the fetched confirmation candles into buildSignalFromCandles's third argument", async () => {
+    vi.mocked(getCandles).mockResolvedValue(freshSeries());
+    vi.mocked(buildSignalFromCandles).mockReturnValue(longSignal() as never);
+    await signalEngineStrategy.generateIntent("user-1", "BTC/USDT:4h", NOW_ISO, new Prisma.Decimal("1"));
+    const call = vi.mocked(buildSignalFromCandles).mock.calls[0];
+    expect(call[2]).toEqual(
+      expect.objectContaining({ oneHourCandles: expect.any(Array), oneDayCandles: expect.any(Array) }),
+    );
+  });
+});

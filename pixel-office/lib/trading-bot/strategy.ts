@@ -56,7 +56,19 @@ export class SignalEngineStrategy implements Strategy {
     const freshness = checkCandleFreshness(series.candles, timeframe, Date.now());
     if (!freshness.ok) return reject(freshness.code, freshness.reason);
 
-    const signal = buildSignalFromCandles({ ...series, symbol }, new Date().toISOString());
+    // Phase 2 parity: fetch the same 1h/1d confirmation data the display path
+    // (generateSignals) uses, so order-time re-validation never diverges from
+    // what the user was shown. Public Strategy interface and SourceSignal are
+    // unchanged — this only affects internal computation.
+    const [oneHourSeries, oneDaySeries] = await Promise.all([
+      getCandles(ticker, "1h", CANDLE_LIMIT),
+      getCandles(ticker, "1d", CANDLE_LIMIT),
+    ]);
+
+    const signal = buildSignalFromCandles({ ...series, symbol }, new Date().toISOString(), {
+      oneHourCandles: oneHourSeries.candles,
+      oneDayCandles: oneDaySeries.candles,
+    });
 
     if (signal.direction === "WAIT" || signal.source === "insufficient-data") {
       return reject("NON_ACTIONABLE_SIGNAL");
