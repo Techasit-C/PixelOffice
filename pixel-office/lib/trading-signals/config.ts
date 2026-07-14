@@ -76,3 +76,12 @@ export const STALE_GRACE_MS = 5 * 60_000;
 // silently coupling two unrelated tuning knobs.
 export const BOLLINGER_PERIOD = 20;
 export const BOLLINGER_STDDEV_MULT = 2;
+
+// --- Phase 2: multi-timeframe confirmation (multi-timeframe.ts) --------------
+// Directional-bias-only confirmation needs less than the primary's full
+// MIN_BARS — it only computes smaFast/smaSlow, not RSI/ATR/volume/MACD/BB.
+export const CONFIRMATION_MIN_BARS = INDICATOR_PERIODS.smaSlow;
+// Bounds simultaneous candle fetches per generateSignals() call (today's
+// worst case: 3 symbols x 3 timeframes = 9; this keeps it bounded as
+// SUPPORTED_SYMBOLS potentially grows).
+export const MAX_CONCURRENT_CANDLE_FETCHES = 6;
