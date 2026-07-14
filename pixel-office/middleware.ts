@@ -23,6 +23,7 @@ const isProtectedPage = createRouteMatcher([
   "/executive(.*)",
   "/operations(.*)",
   "/mission-control(.*)",
+  "/trading-bot(.*)",
 ]);
 
 const passthrough = () => NextResponse.next();
