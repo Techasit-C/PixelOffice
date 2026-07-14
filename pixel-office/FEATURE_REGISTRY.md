@@ -101,6 +101,43 @@ team. Node runtime (reads the filesystem). The `AgentsResponse` contract in
 - **Caveat:** both the cache and the limiter are per serverless instance (module
   memory), not shared across instances.
 
+## Trading Bot — `/trading-bot` (Phase 1)
+
+A paper-trading demo built on top of the existing read-only signal engine. **Mock
+only** — no real broker, no real money, no persistence. Full design:
+`docs/superpowers/specs/2026-07-14-trading-bot-phase1-design.md`.
+
+- **Files:** `app/trading-bot/page.tsx`, `components/trading-bot/TradingBotPageClient.tsx`,
+  `lib/trading-bot/**` (types, config, serialize, pricing, freshness, store, broker-types,
+  mock-broker, risk-engine, strategy), `app/api/trading-bot/{account,positions,orders,
+  positions/close}/route.ts`.
+- **Pipeline:** existing `/api/trading-signals` (unmodified) → `SignalEngineStrategy`
+  (re-derives the signal server-side, never trusts client-supplied levels) →
+  `TradeIntent` → `StubRiskEngine` (4 rules only — stop-loss present, cost ≤ cash,
+  position-quantity checks, valid quantity format) → `MockBroker` → `Fill`.
+- **Long-only, Phase 1 scope:** BUY only from an actionable `LONG` signal; `SHORT`
+  signals are rejected (`UNSUPPORTED_SHORT`); a separate "Close Position" action lets
+  a user reduce/fully close an existing position (signal-independent, server-derived
+  price/quantity).
+- **Data sources:** market data reused from the existing keyless MEXC klines
+  (`lib/market-data/candles.ts`) — no new provider, no credentials. Account state
+  starts at a fixed `10,000.00 USDT` paper balance (**Mock**, always).
+- **Caveats (honest, not defects):**
+  - **In-memory, single-process only.** `lib/trading-bot/store.ts` holds a
+    module-scoped `Map<userId, MockAccount>` — correct in a single warm Node
+    process (local dev), **not safe on serverless/multi-instance deployment**.
+    State resets on every server restart. No database persistence exists yet
+    (Phase 4).
+  - Idempotency (duplicate-submission protection) is enforced via a per-user
+    in-process lock — protects within one Node process only, not across instances.
+  - `StubRiskEngine` implements exactly 4 rules; the full risk engine (daily loss
+    limit, drawdown, exposure caps, circuit breakers, kill switch) is Phase 4.
+  - No live trading, no broker credentials, no 2FA/live-mode toggle exist anywhere
+    in this code — not even a disabled one.
+- **Safety test:** `tests/trading-bot-safety.test.ts` statically scans
+  `lib/trading-bot/**` and `app/api/trading-bot/**` and fails the suite if any file
+  imports `lib/exchanges/*` or references broker credentials / a live-mode identifier.
+
 ## Configuration (environment variables)
 
 New optional variables introduced in Sprint 5 — documented in `.env.example`, all
@@ -114,3 +151,10 @@ with sane defaults, safe to leave unset:
 `RATE_LIMIT_AGENTS_MAX` shares the window length set by `RATE_LIMIT_WINDOW_MS`
 (default 60000 ms) and can be disabled globally with `RATE_LIMIT_DISABLED=1`, both of
 which pre-date Sprint 5.
+
+Trading Bot Phase 1 adds two more, same conventions:
+
+| Variable | Optional? | Default | Purpose |
+|---|---|---|---|
+| `RATE_LIMIT_TRADING_BOT_READ_MAX` | Yes | `60` (per 60 s) | Per-user limit for `/api/trading-bot/{account,positions}` |
+| `RATE_LIMIT_TRADING_BOT_WRITE_MAX` | Yes | `20` (per 60 s) | Per-user limit for `/api/trading-bot/{orders,positions/close}` |

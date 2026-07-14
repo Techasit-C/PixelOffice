@@ -12,6 +12,22 @@ modules.
 
 ## Completed
 
+### AI Trading Bot — Phase 1 ✅ (2026-07-14)
+
+Interfaces + mock broker, per the approved design
+(`docs/superpowers/specs/2026-07-14-trading-bot-phase1-design.md`) and
+implementation plan (`docs/superpowers/plans/2026-07-14-trading-bot-phase1.md`).
+See `FEATURE_REGISTRY.md` for full detail.
+
+- `BrokerAdapter` / `Strategy` / `TradeIntent` / `RiskEngine` contracts, an
+  in-memory per-user `MockBroker`, a 4-rule `StubRiskEngine`, and
+  `SignalEngineStrategy` (wraps the existing read-only signal engine).
+- `/trading-bot` page + 4 API routes (`account`, `positions`, `orders`,
+  `positions/close`), all protected, all idempotent, long-only.
+- **Not included yet (deferred, see Backlog):** database persistence, the full
+  risk-rule set, backtesting, extended indicators (MACD/Bollinger/multi-timeframe),
+  live trading, broker credentials/connection settings, bot automation.
+
 ### Sprint 5 — AI Company OS foundation ✅ (2026-07-08)
 
 Shipped and verified (QA gate G5.3 PASSED, security review CLEAR). See
@@ -46,3 +62,14 @@ These were explicitly deferred during Sprint 5 and are captured for future plann
 - **Keep `lib/agents/teams.ts` in sync with `CLAUDE.md`.** Ensure the team lists the
   API groups agents into stay aligned with the canonical team roster defined in the
   project `CLAUDE.md`.
+- **AI Trading Bot Phase 2+.** Extended indicators (MACD, Bollinger Bands,
+  multi-timeframe confirmation) on top of the existing signal engine; Phase 3
+  backtesting with look-ahead/leakage prevention; Phase 4 persisted paper trading
+  (`Order`/`Fill`/`Position`/`RiskProfile` Prisma models replacing the in-memory
+  store) and the full risk-rule set (daily loss limit, drawdown, exposure caps,
+  cooldown, circuit breakers, kill switch); Phase 5 sandbox/testnet broker
+  integration (requires explicit provider authorization); Phase 6 guarded live
+  trading (requires a separate explicit authorization after Phase 4/5 review);
+  Phase 7 security/monitoring/deployment hardening. Each phase requires its own
+  brainstorming → spec → plan cycle before implementation, per the approved Phase 1
+  process.
