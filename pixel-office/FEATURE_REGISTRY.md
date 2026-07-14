@@ -103,10 +103,11 @@ team. Node runtime (reads the filesystem). The `AgentsResponse` contract in
 
 ## Trading Bot — `/trading-bot` (Phase 1)
 
-**Status: Implementation complete; authenticated interactive acceptance pending.**
-All automated tests/typecheck/lint/build/safety-scan pass; the authenticated browser
-workflow (sign-in → BUY → close, etc.) has not yet been exercised by a human. See
-`docs/superpowers/specs/2026-07-14-trading-bot-phase1-acceptance-checklist.md`.
+**Status: Accepted (2026-07-14).** All automated tests/typecheck/lint/build/
+safety-scan pass, and the authenticated interactive acceptance checklist
+(`docs/superpowers/specs/2026-07-14-trading-bot-phase1-acceptance-checklist.md`)
+was completed by the repository owner — all 9 items passed, no unexpected
+browser-console errors.
 
 A paper-trading demo built on top of the existing read-only signal engine. **Mock
 only** — no real broker, no real money, no persistence. Full design:

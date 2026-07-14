@@ -10,16 +10,16 @@ dashboard surfaces layered additively over the data the app already produces, wh
 preserving the original Pixel Office architecture and the Portfolio and Trading
 modules.
 
-## Implementation complete — acceptance pending
+## Completed
 
-### AI Trading Bot — Phase 1 (2026-07-14)
+### AI Trading Bot — Phase 1 ✅ (2026-07-14)
 
-**Status: Implementation complete; authenticated interactive acceptance pending.**
-All automated gates pass (218/218 tests, clean typecheck, clean lint, clean build,
-static safety scan). The authenticated browser workflow has not yet been exercised
-by a human — see the acceptance checklist in
-`docs/superpowers/specs/2026-07-14-trading-bot-phase1-acceptance-checklist.md`.
-This entry moves to `## Completed` only once that checklist passes.
+**Status: Accepted.** All automated gates pass (218/218 tests, clean typecheck,
+clean lint, clean build, static safety scan), and the authenticated interactive
+acceptance checklist
+(`docs/superpowers/specs/2026-07-14-trading-bot-phase1-acceptance-checklist.md`)
+was completed by the repository owner — all 9 items passed, no unexpected
+browser-console errors.
 
 Interfaces + mock broker, per the approved design
 (`docs/superpowers/specs/2026-07-14-trading-bot-phase1-design.md`) and
@@ -33,12 +33,12 @@ See `FEATURE_REGISTRY.md` for full detail.
   `positions/close`), all protected, all idempotent, long-only.
 - **Not included yet (deferred, see Backlog):** database persistence, the full
   risk-rule set, backtesting, extended indicators (MACD/Bollinger/multi-timeframe),
-  live trading, broker credentials/connection settings, bot automation.
+  live trading, broker credentials/connection settings, bot automation. Phase 2
+  requires a separate design and explicit approval before work begins.
 - **The `MockBroker`/in-memory store is a Phase 1 development aid only — it is
   NOT deployment-safe and NOT production-ready** (module-scoped state, single
-  Node process only; see Caveats in `FEATURE_REGISTRY.md`).
-
-## Completed
+  Node process only; see Caveats in `FEATURE_REGISTRY.md`). Accepted for Phase 1
+  scope on that explicit basis.
 
 ### Sprint 5 — AI Company OS foundation ✅ (2026-07-08)
 

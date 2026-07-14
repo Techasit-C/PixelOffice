@@ -1,12 +1,13 @@
 # AI Trading Bot — Phase 1 Design (Interfaces + Mock Broker)
 
-Status: **Implementation complete; authenticated interactive acceptance pending**
-(2026-07-14). All 16 implementation-plan tasks are built and committed; the full
-automated suite passes (218/218 tests, clean typecheck, clean lint, clean build,
-clean static safety scan). The authenticated browser workflow has not yet been
-exercised by a human — see
-`docs/superpowers/specs/2026-07-14-trading-bot-phase1-acceptance-checklist.md`.
-Phase 1 is fully accepted only once that checklist passes.
+Status: **Accepted** (2026-07-14). All 16 implementation-plan tasks are built and
+committed; the full automated suite passes (218/218 tests, clean typecheck,
+clean lint, clean build, clean static safety scan). The authenticated
+interactive acceptance checklist
+(`docs/superpowers/specs/2026-07-14-trading-bot-phase1-acceptance-checklist.md`)
+has been completed by the repository owner — all 9 items passed, no unexpected
+browser-console errors. Phase 1 is fully accepted. Phase 2 requires a separate
+design and explicit approval before work begins.
 
 Scope: **Phase 1 only** — architecture, interfaces, and a mock broker,
 integrated into the existing `pixel-office` Next.js app. No persistence, no
