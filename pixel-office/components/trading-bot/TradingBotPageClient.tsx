@@ -11,6 +11,14 @@ interface TradingSignalDTO {
   direction: "LONG" | "SHORT" | "WAIT";
   generatedAt: string;
   confidence: number;
+  plainLanguageSummary?: string;
+  macd?: { macdLine: number | null; signalLine: number | null; histogram: number | null };
+  bollinger?: { middle: number | null; upper: number | null; lower: number | null; percentB: number | null };
+  timeframeConfirmation?: {
+    oneHour: "ALIGNED" | "NEUTRAL" | "UNAVAILABLE" | "OPPOSITE";
+    oneDay: "ALIGNED" | "NEUTRAL" | "UNAVAILABLE" | "OPPOSITE";
+    adjustment: number;
+  } | null;
 }
 interface SignalsResponse {
   signals: TradingSignalDTO[];
@@ -174,7 +182,17 @@ export default function TradingBotPageClient() {
         ) : null}
         {signals.data?.signals.map((s) => (
           <div key={s.symbol} className="border-t border-border/40 py-2 first:border-t-0">
-            <StatLine label={s.symbol} value={`${s.direction} · confidence ${s.confidence}`} />
+            <StatLine label={s.symbol} value={`${s.direction} · confidence (heuristic) ${s.confidence}`} />
+            {s.plainLanguageSummary ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">{s.plainLanguageSummary}</p>
+            ) : null}
+            {s.timeframeConfirmation ? (
+              <p className="mt-1 text-[10px] text-muted-foreground/70">
+                Timeframe confirmation: 1h {s.timeframeConfirmation.oneHour.toLowerCase()}, 1d{" "}
+                {s.timeframeConfirmation.oneDay.toLowerCase()} ({s.timeframeConfirmation.adjustment >= 0 ? "+" : ""}
+                {s.timeframeConfirmation.adjustment})
+              </p>
+            ) : null}
             {s.direction === "LONG" ? (
               <div className="mt-1 flex items-center gap-2">
                 <input
