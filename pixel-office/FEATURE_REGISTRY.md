@@ -210,6 +210,112 @@ confidence enrichment. Full design:
 - **Safety test:** `trading-signals-safety.test.ts`'s existing file-glob
   automatically covers every new Phase 2 file with zero test-file changes.
 
+## Trading Bot — Backtesting (Phase 3)
+
+**Status: Implementation complete; authenticated interactive acceptance
+pending.** All automated tests/typecheck/lint/build/safety-scan pass. The
+authenticated interactive acceptance checklist
+(`docs/superpowers/specs/2026-07-15-trading-bot-phase3-acceptance-checklist.md`)
+has not yet been run by the repository owner — Phase 3 is not marked Accepted
+and Phase 4 has not begun. Full design:
+`docs/superpowers/specs/2026-07-15-trading-bot-phase3-backtesting-design.md`;
+implementation plan: `docs/superpowers/plans/2026-07-15-trading-bot-phase3-backtesting.md`.
+
+Deterministic, long-only, single-symbol (4h primary + 1h/1d confirmation),
+in-memory backtesting over the accepted Phase 2 signal engine. No live
+trading, no persistence, no leverage/margin/executable shorts, no parameter
+optimization, no broker/credential access.
+
+- **Files:** `lib/backtest/{types,config,decimal,validate-candles,
+  candle-window,fills,sizing,simulate,benchmark,metrics,run-backtest,
+  serialize,csv}.ts` (new, all pure/deterministic, zero I/O); 
+  `lib/market-data/historical-candles.ts` (new — paginated MEXC klines fetch,
+  isolated from `lib/backtest/`); `lib/api/deadline.ts` (new — generic
+  timeout-with-fallback race); `app/api/trading-bot/backtest/route.ts` (new);
+  `components/trading-bot/BacktestPageClient.tsx` +
+  `app/trading-bot/backtest/page.tsx` (new); `lib/api/rate-limit.ts` (additive
+  `backtestRun` bucket); `vercel.json` (additive explicit 60s `maxDuration`
+  for the route).
+- **Reuses the real, unmodified Phase 2 signal engine:** `runBacktest` wires
+  `buildSignalFromCandles` in directly as the simulation loop's injected
+  `SignalProvider`, called once per decision bar with a historical
+  `analysisNow` — the same closed-candle/staleness logic the live engine
+  uses, not a re-implementation. A future-independence invariant suite
+  (`tests/backtest-future-independence.test.ts`) proves perturbing any
+  primary, 1h, or 1d candle strictly after a cutoff time never changes any
+  event, trade, or equity point at or before that cutoff.
+- **Decision-bar / tradable-bar boundary model:** the final 4h candle whose
+  close lands exactly at the effective end boundary is still processed for
+  exits, equity marking, and forced liquidation, but never produces a new
+  entry signal — a corrected model from the design spec's §6.3, verified
+  end-to-end by `tests/backtest-boundary-e2e.test.ts`. A separate regression
+  (`tests/backtest-warmup-invariant.test.ts`) proves the per-bar loop's
+  evaluation-only iteration never trims the warm-up history handed to the
+  signal engine: the first eligible decision bar always receives the full
+  60-bar primary pre-roll and the full 50-bar 1h/1d confirmation pre-roll.
+- **Risk-based sizing, hard-capped:** every entry is sized to the lesser of
+  available cash and a 0.5% risk-budget fraction via a bounded
+  cash-and-risk-budget decrement loop (`MAX_AFFORDABILITY_ADJUST_STEPS = 8`,
+  no tolerance, hard cap) — reused identically by strategy entries and the
+  buy-and-hold benchmark (cash-only mode). Quantity never rounds upward
+  (`Q8`, `ROUND_DOWN`); all monetary math uses `Prisma.Decimal` at 8dp with
+  `ROUND_HALF_UP` (`D8`); fees are always computed from total executed
+  notional, never a rounded per-unit fee times quantity.
+- **Execution model:** a signal computed at a decision bar's close can only
+  fill at the *next* bar's open — sequence-numbered events resolve the case
+  where a signal's close and the next bar's open share the same timestamp,
+  structurally (by index), not by timestamp comparison alone. Stop-first
+  applies whenever both stop and TP1 are touched intrabar. Spread and
+  slippage are always separate configuration inputs, never blended.
+- **Empirically-verified MEXC pagination contract:** the public klines
+  endpoint caps at 500 rows per page regardless of the requested `limit`,
+  confirmed against the live API (not assumed from documentation) in the
+  opt-in live test. Pagination is cursor-overlap-deduplicated, hard-fails on
+  a byte-identical stuck cursor, retries a page exactly once, and truncates
+  at `MAX_PAGES_PER_TIMEFRAME = 20`.
+- **API route protections:** `requireUser()` authentication, a dedicated
+  `backtestRun` rate-limit bucket (5/min default), zod validation against
+  `CONFIG_BOUNDS` with the symbol restricted to the server-side
+  `SUPPORTED_SYMBOLS` enum, a 1–365 day range check, and the exchange ticker
+  resolved only from the server-side `SYMBOL_WHITELIST` — no request field is
+  ever used to build the provider URL. A single shared `AbortController` ties
+  the request's own abort signal to a 55s internal deadline
+  (`raceWithDeadline`); aborting it propagates into every in-flight and
+  future paginated fetch, so a timeout actually stops network I/O. Errors
+  route through the existing `toErrorResponse`, which never echoes stack
+  traces, request bodies, or financial results to the client.
+- **Response shape and size cap:** `.equityCurve`/`.metrics`/`.tradeLedger`
+  are always full-resolution; `.equityCurveChart` is downsampled to ≤500
+  points for display only and can never feed back into any metric
+  calculation. The full JSON response is capped at 2 MB of UTF-8 bytes
+  (`Buffer.byteLength`, not string length) as a self-imposed limit, not a
+  platform claim.
+- **CSV export — trade ledger only:** no equity-curve CSV is offered, at any
+  resolution. `tradeLedgerToCsv()` escapes commas/quotes/LF/CR per RFC 4180,
+  and additionally neutralizes spreadsheet-formula injection (OWASP CSV
+  Injection): any cell whose first character is `=`, `+`, `-`, `@`, a tab, or
+  a carriage return gets a leading single quote. This is applied uniformly
+  across every column, including legitimate negative numeric fields such as
+  `realizedPnl` — a documented, deliberate tradeoff, since CSV carries no
+  per-column type information to exempt "numeric" columns safely.
+- **Safety boundary:** `lib/backtest/` is scanned by an extended
+  `tests/trading-signals-safety.test.ts` and is structurally forbidden from
+  importing network/broker/credential/live-execution code,
+  `lib/market-data/historical-candles.ts`, or anything under
+  `lib/trading-bot/`; any reference to `lib/market-data/candles.ts` must be
+  type-only.
+- **Live-provider test:** `tests/live/historical-candles.live.test.ts` is
+  excluded from the default `npm test` run and requires the explicit opt-in
+  `RUN_LIVE_MEXC_TESTS=1` env var. It performs two real, read-only,
+  timeout-protected requests against the public MEXC API (a raw single-page
+  fetch and an end-to-end paginated fetch) — never runs in CI unless
+  explicitly configured.
+- **Caveats (honest, not defects):** no persistence — every result is
+  computed fresh per request and discarded; no optimization/parameter
+  sweep; long-only (no shorts, no leverage/margin); single-symbol per run;
+  the in-memory rate limiter has the same per-instance caveat as Phase 1/2's
+  candle cache.
+
 ## Configuration (environment variables)
 
 New optional variables introduced in Sprint 5 — documented in `.env.example`, all
@@ -230,3 +336,9 @@ Trading Bot Phase 1 adds two more, same conventions:
 |---|---|---|---|
 | `RATE_LIMIT_TRADING_BOT_READ_MAX` | Yes | `60` (per 60 s) | Per-user limit for `/api/trading-bot/{account,positions}` |
 | `RATE_LIMIT_TRADING_BOT_WRITE_MAX` | Yes | `20` (per 60 s) | Per-user limit for `/api/trading-bot/{orders,positions/close}` |
+
+Trading Bot Phase 3 adds one more, same conventions:
+
+| Variable | Optional? | Default | Purpose |
+|---|---|---|---|
+| `RATE_LIMIT_BACKTEST_MAX` | Yes | `5` (per 60 s) | Per-user limit for `POST /api/trading-bot/backtest` (an expensive, provider-hitting request) |

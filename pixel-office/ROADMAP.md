@@ -10,6 +10,40 @@ dashboard surfaces layered additively over the data the app already produces, wh
 preserving the original Pixel Office architecture and the Portfolio and Trading
 modules.
 
+## Implementation complete — acceptance pending
+
+### AI Trading Bot — Phase 3, Deterministic Backtesting (2026-07-16)
+
+**Status: Implementation complete; authenticated interactive acceptance
+pending.** All automated gates pass (full test suite, clean typecheck, clean
+lint, clean build, static safety scan). The authenticated interactive
+acceptance checklist
+(`docs/superpowers/specs/2026-07-15-trading-bot-phase3-acceptance-checklist.md`)
+has not yet been run by the repository owner — Phase 3 is **not** marked
+Accepted, and Phase 4 has not begun.
+
+Deterministic, long-only, single-symbol backtesting over the accepted Phase 2
+signal engine, per the approved design
+(`docs/superpowers/specs/2026-07-15-trading-bot-phase3-backtesting-design.md`)
+and implementation plan
+(`docs/superpowers/plans/2026-07-15-trading-bot-phase3-backtesting.md`). See
+`FEATURE_REGISTRY.md` for full detail.
+
+- Reuses the real, unmodified `buildSignalFromCandles` as the simulation
+  loop's injected signal provider — proven look-ahead-free by a dedicated
+  future-independence invariant suite.
+- Risk-based sizing hard-capped at cash and a 0.5% risk budget, corrected
+  decision-bar/tradable-bar boundary handling, an empirically-verified MEXC
+  pagination contract, a self-imposed 2 MB response cap, and a trade-ledger-
+  only CSV export with spreadsheet-formula-injection protection.
+- Authenticated, rate-limited (`backtestRun` bucket), strictly-whitelisted
+  API route with a shared-AbortController internal deadline that actually
+  stops in-flight network requests, not just the response.
+- **Not included yet (deferred, see Backlog):** database persistence,
+  parameter optimization, leverage/margin/executable shorts, live trading,
+  broker credentials, bot automation — unchanged from Phase 1/2. Phase 4
+  requires a separate design and explicit approval before work begins.
+
 ## Completed
 
 ### AI Trading Bot — Phase 2, Extended Signal Analysis ✅ (2026-07-14)
@@ -105,14 +139,15 @@ These were explicitly deferred during Sprint 5 and are captured for future plann
 - **Keep `lib/agents/teams.ts` in sync with `CLAUDE.md`.** Ensure the team lists the
   API groups agents into stay aligned with the canonical team roster defined in the
   project `CLAUDE.md`.
-- **AI Trading Bot Phase 3+.** Phase 3 backtesting with look-ahead/leakage
-  prevention; Phase 4 persisted paper trading (`Order`/`Fill`/`Position`/
-  `RiskProfile` Prisma models replacing the in-memory store) and the full
-  risk-rule set (daily loss limit, drawdown, exposure caps, cooldown, circuit
-  breakers, kill switch); Phase 5 sandbox/testnet broker integration (requires
-  explicit provider authorization); Phase 6 guarded live trading (requires a
-  separate explicit authorization after Phase 4/5 review); Phase 7 security/
-  monitoring/deployment hardening. Each phase requires its own brainstorming →
-  spec → plan cycle before implementation, per the approved process. (Phase 2,
-  extended indicators/multi-timeframe confirmation, is accepted — see
-  Completed section above.)
+- **AI Trading Bot Phase 4+.** Phase 4 persisted paper trading
+  (`Order`/`Fill`/`Position`/`RiskProfile` Prisma models replacing the
+  in-memory store) and the full risk-rule set (daily loss limit, drawdown,
+  exposure caps, cooldown, circuit breakers, kill switch); Phase 5
+  sandbox/testnet broker integration (requires explicit provider
+  authorization); Phase 6 guarded live trading (requires a separate explicit
+  authorization after Phase 4/5 review); Phase 7 security/monitoring/
+  deployment hardening. Each phase requires its own brainstorming → spec →
+  plan cycle before implementation, per the approved process. (Phase 2,
+  extended indicators/multi-timeframe confirmation, is accepted; Phase 3,
+  deterministic backtesting, is implementation-complete with acceptance
+  pending — see sections above.)
