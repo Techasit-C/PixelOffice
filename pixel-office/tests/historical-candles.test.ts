@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { EventEmitter } from "node:events";
 import { fetchHistoricalCandles } from "@/lib/market-data/historical-candles";
 
 const H = 3_600_000; // 1h duration for compact fixtures
@@ -161,5 +162,47 @@ describe("fetchHistoricalCandles — retry and cancellation", () => {
     expect(result.failed).toBe(true);
     expect(result.failureReason).toBe("CANCELLED");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("aborting the shared signal after the first (full) page stops pagination — no second page request is ever issued", async () => {
+    const controller = new AbortController();
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    // A full 500-row page would normally trigger a second page request. The abort
+    // fires as a side effect of the first page's own response resolving — simulating
+    // the internal deadline (or a client cancel) landing exactly between pages, the
+    // same race the route's shared AbortController is exposed to.
+    const page1 = Array.from({ length: 500 }, (_, i) => row(i * H));
+    fetchMock.mockImplementationOnce(async () => {
+      controller.abort();
+      return jsonResponse(page1);
+    });
+
+    const result = await fetchHistoricalCandles("BTCUSDT", "1h", 0, 1000 * H - 1, controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1); // never requested page 2
+    expect(result.failed).toBe(true);
+    expect(result.failureReason).toBe("CANCELLED");
+    // Partial results from the page already in flight are still returned, not thrown away.
+    expect(result.candles.length).toBe(500);
+  });
+
+  it("leaves no leaked abort listener on the caller's signal after a normal completion", async () => {
+    const controller = new AbortController();
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValueOnce(jsonResponse([row(0)]));
+
+    await fetchHistoricalCandles("BTCUSDT", "1h", 0, H - 1, controller.signal);
+
+    expect(EventEmitter.getEventListeners(controller.signal, "abort").length).toBe(0);
+  });
+
+  it("leaves no leaked abort listener on the caller's signal after a failed page fetch", async () => {
+    const controller = new AbortController();
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockRejectedValueOnce(new Error("down")).mockRejectedValueOnce(new Error("still down"));
+
+    await fetchHistoricalCandles("BTCUSDT", "1h", 0, H - 1, controller.signal);
+
+    expect(EventEmitter.getEventListeners(controller.signal, "abort").length).toBe(0);
   });
 });
