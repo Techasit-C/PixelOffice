@@ -48,6 +48,7 @@ function importSpecifiers(src: string): string[] {
 describe("trading-signals safety invariant (static import-graph scan)", () => {
   const targets = [
     ...tsFilesUnder(join(ROOT, "lib", "trading-signals")),
+    ...tsFilesUnder(join(ROOT, "lib", "backtest")),
     join(ROOT, "lib", "market-data", "candles.ts"),
     join(ROOT, "app", "api", "trading-signals", "route.ts"),
   ];
@@ -63,6 +64,45 @@ describe("trading-signals safety invariant (static import-graph scan)", () => {
       for (const spec of importSpecifiers(src)) {
         if (FORBIDDEN.test(spec)) {
           violations.push(`${file} -> "${spec}"`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+});
+
+describe("lib/backtest/ safety boundary (deterministic core)", () => {
+  const backtestFiles = tsFilesUnder(join(ROOT, "lib", "backtest"));
+  const EXTRA_FORBIDDEN = /@\/lib\/market-data\/historical-candles|@\/lib\/trading-bot\//;
+
+  it("scans a non-empty set of backtest files", () => {
+    expect(backtestFiles.length).toBeGreaterThan(0);
+  });
+
+  it("no backtest file imports the historical fetch module, trading-bot, or a forbidden execution capability", () => {
+    const violations: string[] = [];
+    for (const file of backtestFiles) {
+      const src = readFileSync(file, "utf8");
+      for (const spec of importSpecifiers(src)) {
+        if (FORBIDDEN.test(spec) || EXTRA_FORBIDDEN.test(spec)) {
+          violations.push(`${file} -> "${spec}"`);
+        }
+      }
+      if (/\bgetCandles\b/.test(src)) {
+        violations.push(`${file} references getCandles (forbidden — live fetch, not for the deterministic core)`);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("any import of lib/market-data/candles.ts from lib/backtest/ is type-only", () => {
+    const violations: string[] = [];
+    for (const file of backtestFiles) {
+      const lines = readFileSync(file, "utf8").split("\n");
+      for (const line of lines) {
+        const mentionsCandles = line.includes('"@/lib/market-data/candles"') || line.includes("'@/lib/market-data/candles'");
+        if (mentionsCandles && !/^\s*import\s+type\s/.test(line)) {
+          violations.push(`${file}: "${line.trim()}"`);
         }
       }
     }
