@@ -89,7 +89,8 @@ export type RateLimitBucket =
   | "agentsRead"
   | "signalsRead"
   | "tradingBotRead"
-  | "tradingBotWrite";
+  | "tradingBotWrite"
+  | "backtestRun";
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -120,7 +121,9 @@ function limiterFor(bucket: RateLimitBucket): RateLimiter {
             ? envInt("RATE_LIMIT_TRADING_BOT_READ_MAX", 60)
             : bucket === "tradingBotWrite"
               ? envInt("RATE_LIMIT_TRADING_BOT_WRITE_MAX", 20)
-              : envInt("RATE_LIMIT_READ_MAX", 60);
+              : bucket === "backtestRun"
+                ? envInt("RATE_LIMIT_BACKTEST_MAX", 5)
+                : envInt("RATE_LIMIT_READ_MAX", 60);
 
   const created: RateLimiter = DISABLED
     ? new NoopRateLimiter()

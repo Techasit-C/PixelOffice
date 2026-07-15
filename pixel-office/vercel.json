@@ -6,6 +6,9 @@
   "functions": {
     "app/api/cron/snapshot/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/trading-bot/backtest/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
