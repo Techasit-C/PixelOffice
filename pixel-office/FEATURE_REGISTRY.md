@@ -212,12 +212,16 @@ confidence enrichment. Full design:
 
 ## Trading Bot — Backtesting (Phase 3)
 
-**Status: Implementation complete; authenticated interactive acceptance
-pending.** All automated tests/typecheck/lint/build/safety-scan pass. The
-authenticated interactive acceptance checklist
+**Status: Accepted (2026-07-16).** All automated tests/typecheck/lint/build/
+safety-scan pass, and the authenticated interactive acceptance checklist
 (`docs/superpowers/specs/2026-07-15-trading-bot-phase3-acceptance-checklist.md`)
-has not yet been run by the repository owner — Phase 3 is not marked Accepted
-and Phase 4 has not begun. Full design:
+was completed by the repository owner — all items passed, including
+navigation between Trading Bot and Backtest, a real MEXC-backed run,
+immutable result/config binding, stale-result clearing after input changes,
+client-side validation without unnecessary API requests, hand-verified trade
+accounting, CSV validation, cancellation behavior, invalid-input rejection, a
+clean application console, and confirmation that no live execution
+capability is reachable. Full design:
 `docs/superpowers/specs/2026-07-15-trading-bot-phase3-backtesting-design.md`;
 implementation plan: `docs/superpowers/plans/2026-07-15-trading-bot-phase3-backtesting.md`.
 

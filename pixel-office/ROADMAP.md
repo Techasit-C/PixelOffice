@@ -10,17 +10,21 @@ dashboard surfaces layered additively over the data the app already produces, wh
 preserving the original Pixel Office architecture and the Portfolio and Trading
 modules.
 
-## Implementation complete — acceptance pending
+## Completed
 
-### AI Trading Bot — Phase 3, Deterministic Backtesting (2026-07-16)
+### AI Trading Bot — Phase 3, Deterministic Backtesting ✅ (2026-07-16)
 
-**Status: Implementation complete; authenticated interactive acceptance
-pending.** All automated gates pass (full test suite, clean typecheck, clean
-lint, clean build, static safety scan). The authenticated interactive
-acceptance checklist
+**Status: Accepted.** All automated gates pass (full test suite, clean
+typecheck, clean lint, clean build, static safety scan), and the
+authenticated interactive acceptance checklist
 (`docs/superpowers/specs/2026-07-15-trading-bot-phase3-acceptance-checklist.md`)
-has not yet been run by the repository owner — Phase 3 is **not** marked
-Accepted, and Phase 4 has not begun.
+was completed by the repository owner — all items passed, including
+navigation between Trading Bot and Backtest, a real MEXC-backed run,
+immutable result/config binding, stale-result clearing after input changes,
+client-side validation without unnecessary API requests, hand-verified trade
+accounting, CSV validation, cancellation behavior, invalid-input rejection, a
+clean application console, and confirmation that no live execution
+capability is reachable.
 
 Deterministic, long-only, single-symbol backtesting over the accepted Phase 2
 signal engine, per the approved design
@@ -34,17 +38,20 @@ and implementation plan
   future-independence invariant suite.
 - Risk-based sizing hard-capped at cash and a 0.5% risk budget, corrected
   decision-bar/tradable-bar boundary handling, an empirically-verified MEXC
-  pagination contract, a self-imposed 2 MB response cap, and a trade-ledger-
-  only CSV export with spreadsheet-formula-injection protection.
+  pagination contract, a self-imposed 2 MB response cap, and a schema-aware,
+  trade-ledger-only CSV export (monetary/quantity/timestamp columns stay
+  numeric; only free-text columns get spreadsheet-formula-injection
+  protection).
 - Authenticated, rate-limited (`backtestRun` bucket), strictly-whitelisted
   API route with a shared-AbortController internal deadline that actually
   stops in-flight network requests, not just the response.
+- Visible cross-navigation between `/trading-bot` and `/trading-bot/backtest`;
+  stale-result clearing and client-side validation (with focus management) on
+  the backtest form.
 - **Not included yet (deferred, see Backlog):** database persistence,
   parameter optimization, leverage/margin/executable shorts, live trading,
   broker credentials, bot automation — unchanged from Phase 1/2. Phase 4
   requires a separate design and explicit approval before work begins.
-
-## Completed
 
 ### AI Trading Bot — Phase 2, Extended Signal Analysis ✅ (2026-07-14)
 
@@ -148,6 +155,5 @@ These were explicitly deferred during Sprint 5 and are captured for future plann
   authorization after Phase 4/5 review); Phase 7 security/monitoring/
   deployment hardening. Each phase requires its own brainstorming → spec →
   plan cycle before implementation, per the approved process. (Phase 2,
-  extended indicators/multi-timeframe confirmation, is accepted; Phase 3,
-  deterministic backtesting, is implementation-complete with acceptance
-  pending — see sections above.)
+  extended indicators/multi-timeframe confirmation, and Phase 3, deterministic
+  backtesting, are both accepted — see Completed section above.)

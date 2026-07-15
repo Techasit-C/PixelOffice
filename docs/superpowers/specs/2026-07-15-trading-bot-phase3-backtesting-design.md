@@ -1,6 +1,15 @@
 # AI Trading Bot — Phase 3: Deterministic Long-Only Backtesting
 
-**Status: Approved for implementation planning (2026-07-15).**
+**Status: Accepted (2026-07-16).** Implementation complete; the authenticated
+interactive acceptance checklist
+(`docs/superpowers/specs/2026-07-15-trading-bot-phase3-acceptance-checklist.md`)
+was completed by the repository owner — all items passed, including
+navigation between Trading Bot and Backtest, a real MEXC-backed run,
+immutable result/config binding, stale-result clearing after input changes,
+client-side validation without unnecessary API requests, hand-verified trade
+accounting, CSV validation, cancellation behavior, invalid-input rejection, a
+clean application console, and confirmation that no live execution
+capability is reachable.
 
 This specification defines Phase 3 of the AI Trading Bot: a deterministic, auditable,
 long-only backtesting system for the accepted Phase 2 signal engine. It does not place
