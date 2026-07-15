@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { PageShell } from "@/components/ui/PageShell";
 import { PixelCard, StatLine } from "@/components/ui/PixelCard";
 import { useJsonPoll } from "@/lib/use-json-poll";
@@ -124,7 +125,19 @@ export default function TradingBotPageClient() {
 
   return (
     <PageShell accent="#f59e0b">
-      <PixelCard title="Trading Bot — Paper / Simulated" accent="#f59e0b">
+      <PixelCard
+        title="Trading Bot — Paper / Simulated"
+        accent="#f59e0b"
+        right={
+          <Link
+            href="/trading-bot/backtest"
+            aria-label="Open Backtesting"
+            className="rounded-sm border border-border px-2 py-1 text-xs hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            Open Backtesting →
+          </Link>
+        }
+      >
         <p className="text-xs text-warning">
           Paper trading only — no real orders, no real money. This mode cannot be turned off.
           Account state is in-memory and resets whenever the server restarts (no persistence in Phase 1).

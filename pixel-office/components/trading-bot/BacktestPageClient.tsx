@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { PageShell } from "@/components/ui/PageShell";
 import { PixelCard, StatLine } from "@/components/ui/PixelCard";
 import { tradeLedgerToCsv, CsvExportError } from "@/lib/backtest/csv";
@@ -127,7 +128,19 @@ export default function BacktestPageClient() {
 
   return (
     <PageShell accent="#f59e0b">
-      <PixelCard title="Backtest — Deterministic, Long-Only, Paper-Only" accent="#f59e0b">
+      <PixelCard
+        title="Backtest — Deterministic, Long-Only, Paper-Only"
+        accent="#f59e0b"
+        right={
+          <Link
+            href="/trading-bot"
+            aria-label="Back to Trading Bot"
+            className="rounded-sm border border-border px-2 py-1 text-xs hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            ← Back to Trading Bot
+          </Link>
+        }
+      >
         <p className="text-xs text-warning">
           Historical simulation only — no real orders, no real money, no persistence. Confidence
           figures throughout are heuristic, not a probability of profit.
