@@ -1,10 +1,17 @@
 // LIVE, NETWORK-DEPENDENT test. Requires an explicit opt-in: only runs when
 // RUN_LIVE_MEXC_TESTS=1 is set. `npm test` never sets this, so this file is a no-op
 // (all tests skipped) in the default suite and in CI unless CI is explicitly
-// configured to set the variable. Public, keyless, read-only endpoint; bounded to one
-// request; 10s test timeout.
+// configured to set the variable. Public, keyless, read-only endpoint.
 //
-// Run manually:
+// Two `it` blocks, NOT one request total: the first issues exactly one raw request
+// to the klines endpoint; the second calls fetchHistoricalCandles over a 1000-hour
+// range, which paginates internally and issues at least two page requests (proving
+// real end-to-end pagination past the 500-row cap) and never more than
+// MAX_PAGES_PER_TIMEFRAME (20). Every individual page request is independently
+// timeout-protected (6s, see historical-candles.ts's PAGE_TIMEOUT_MS); each `it`
+// block additionally has a 10s Vitest test timeout.
+//
+// Run manually (also available as `npm run test:live` with the env var set):
 //   PowerShell : $env:RUN_LIVE_MEXC_TESTS='1'; npx vitest run tests/live/historical-candles.live.test.ts
 //   bash       : RUN_LIVE_MEXC_TESTS=1 npx vitest run tests/live/historical-candles.live.test.ts
 import { describe, it, expect } from "vitest";
