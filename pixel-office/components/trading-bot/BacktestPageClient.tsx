@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { PageShell } from "@/components/ui/PageShell";
 import { PixelCard, StatLine } from "@/components/ui/PixelCard";
-import { tradeLedgerToCsv } from "@/lib/backtest/csv";
+import { tradeLedgerToCsv, CsvExportError } from "@/lib/backtest/csv";
 import { SUPPORTED_SYMBOLS } from "@/lib/trading-signals/config";
 import type { BacktestResult, TradeLedgerEntry } from "@/lib/backtest/types";
 
@@ -35,8 +35,18 @@ function EquitySparkline({ points }: { points: { time: number; equity: string }[
   );
 }
 
-function downloadCsv(entries: TradeLedgerEntry[], symbol: string) {
-  const csv = tradeLedgerToCsv(entries);
+// tradeLedgerToCsv fail-closed-rejects a malformed monetary/timestamp field rather
+// than silently exporting it — that should never happen against a real backtest
+// result, but a thrown CsvExportError must surface as an error message, not an
+// uncaught exception.
+function downloadCsv(entries: TradeLedgerEntry[], symbol: string, onError: (message: string) => void) {
+  let csv: string;
+  try {
+    csv = tradeLedgerToCsv(entries);
+  } catch (err) {
+    onError(err instanceof CsvExportError ? err.message : "Failed to generate CSV export");
+    return;
+  }
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -200,7 +210,7 @@ export default function BacktestPageClient() {
           <PixelCard title="Trade Ledger" accent="#f59e0b">
             <button
               type="button"
-              onClick={() => downloadCsv(result.tradeLedger, result.symbol)}
+              onClick={() => downloadCsv(result.tradeLedger, result.symbol, setError)}
               className="mb-2 rounded-sm border border-border px-2 py-1 text-xs hover:bg-white/5"
             >
               Download CSV
