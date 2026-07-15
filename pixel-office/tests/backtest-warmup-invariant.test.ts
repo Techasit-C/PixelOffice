@@ -68,8 +68,8 @@ describe("warm-up invariant — the first eligible decision bar receives full pr
     runBacktest(primary, oneHour, oneDay, window, config);
 
     expect(spy).toHaveBeenCalled();
-    const [firstSeriesArg, firstGeneratedAt, firstConfirmationArg] = spy.mock.calls[0];
-    const analysisNow = Date.parse(firstGeneratedAt);
+    const [firstSeriesArg, firstGeneratedAt, firstConfirmationArg] = spy.mock.calls[0]!;
+    const analysisNow = Date.parse(firstGeneratedAt!);
 
     // The very first decision bar closes exactly at normalizedStart (the decision-only
     // bar from §6.3 — closeTime === normalizedStart, openTime === normalizedStart - H4).
@@ -83,8 +83,8 @@ describe("warm-up invariant — the first eligible decision bar receives full pr
     // Confirmation candles are handed through unfiltered (buildSignalFromCandles does
     // its own analysisNow-based closed-candle filtering internally) — but the closed
     // subset available as of analysisNow must already meet CONFIRMATION_WARMUP_BARS.
-    const closedOneHour = firstConfirmationArg.oneHourCandles.filter((c: Candle) => c.openTime + H1 <= analysisNow);
-    const closedOneDay = firstConfirmationArg.oneDayCandles.filter((c: Candle) => c.openTime + D1 <= analysisNow);
+    const closedOneHour = firstConfirmationArg!.oneHourCandles.filter((c: Candle) => c.openTime + H1 <= analysisNow);
+    const closedOneDay = firstConfirmationArg!.oneDayCandles.filter((c: Candle) => c.openTime + D1 <= analysisNow);
     expect(closedOneHour.length).toBe(CONFIRMATION_WARMUP_BARS);
     expect(closedOneDay.length).toBe(CONFIRMATION_WARMUP_BARS);
   });
@@ -95,7 +95,7 @@ describe("warm-up invariant — the first eligible decision bar receives full pr
 
     for (const call of spy.mock.calls) {
       const [seriesArg, generatedAtArg] = call;
-      const analysisNow = Date.parse(generatedAtArg);
+      const analysisNow = Date.parse(generatedAtArg!);
       for (const c of seriesArg.candles as Candle[]) {
         expect(c.openTime + TIMEFRAME_DURATION_MS_4H).toBeLessThanOrEqual(analysisNow);
       }
