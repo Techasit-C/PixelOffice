@@ -13,7 +13,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
 import { PrismaClient } from "@prisma/client";
+
+const execAsync = promisify(exec);
 
 // Vitest sets NODE_ENV=test, under which Next.js's own @next/env loader deliberately
 // SKIPS .env.local (by design, to keep local-dev secrets out of automated test runs) —
@@ -67,6 +71,15 @@ function normalizeIdentity(rawUrl: string): NormalizedIdentity {
 
 function sameIdentity(a: NormalizedIdentity, b: NormalizedIdentity): boolean {
   return a.host === b.host && a.port === b.port && a.database === b.database;
+}
+
+/**
+ * Strips any postgres(ql):// connection string out of arbitrary text (e.g. a child
+ * process's stderr) before it is ever included in a thrown error or logged — some
+ * Prisma CLI error paths echo the full connection string, credentials included.
+ */
+function redactConnectionStrings(text: string): string {
+  return text.replace(/postgres(?:ql)?:\/\/\S+/gi, "[redacted-connection-string]");
 }
 
 /** Never includes a URL fragment in its thrown message — categorical only. */
@@ -196,5 +209,36 @@ export async function dropIsolatedSchema(schemaName: string): Promise<void> {
     await adminClient.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
   } finally {
     await adminClient.$disconnect();
+  }
+}
+
+/**
+ * Applies the REAL, current migration history via `prisma migrate deploy` — never
+ * `db push`, never `migrate reset`. DATABASE_URL/DIRECT_URL are overridden ONLY in the
+ * spawned child process's environment (a copy of process.env, never process.env
+ * itself) — this process's own DATABASE_URL/DIRECT_URL are never read, written, or
+ * touched. Any error text is redacted before being surfaced, since some Prisma CLI
+ * failure paths echo the connection string.
+ */
+export async function applyMigrations(isolated: IsolatedSchema): Promise<void> {
+  const childEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    DATABASE_URL: isolated.testDatabaseUrl,
+    DIRECT_URL: isolated.testDirectDatabaseUrl,
+  };
+  try {
+    // exec (not execFile) — the command string is a fixed literal with no interpolated
+    // input, so there is no injection surface; execFile+shell:true would also work on
+    // Windows (execFile alone fails with EINVAL spawning npx.cmd) but Node deprecates
+    // combining an args array with shell:true, so exec's single-string form is used
+    // instead.
+    await execAsync("npx prisma migrate deploy", {
+      cwd: process.cwd(),
+      env: childEnv,
+      timeout: 90_000,
+    });
+  } catch (err) {
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    throw new HarnessSafetyError(`prisma migrate deploy failed: ${redactConnectionStrings(rawMessage)}`);
   }
 }
