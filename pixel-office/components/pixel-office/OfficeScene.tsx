@@ -4,13 +4,14 @@ import {
   Diamond,
   DoorOpen,
   Presentation,
-  Trophy,
   type LucideIcon,
 } from "lucide-react";
 import type { AgentsResponse } from "@/types/agent";
 import { AgentAvatar } from "./AgentAvatar";
 import { TeamGrid } from "./OfficeWorkers";
 import { WorldClocks } from "./WorldClocks";
+import { OfficeAsset } from "./OfficeAsset";
+import { OFFICE_TILES } from "./office-assets";
 import {
   DEPARTMENT_THEME,
   coziBackground,
@@ -184,69 +185,47 @@ function NeonSign() {
   );
 }
 
-/** Large window with a city-skyline silhouette, blinds, and a slow light shimmer. */
-function CityWindow({ wide = false }: { wide?: boolean }) {
+/** A real office-asset tile, scaled up and kept crisp — the standard way
+ * every piece of furniture/decor in this scene is rendered. */
+function Asset({
+  tile,
+  size = 64,
+  className = "",
+}: {
+  tile: keyof typeof OFFICE_TILES;
+  size?: number;
+  className?: string;
+}) {
   return (
-    <div
-      className={`relative shrink-0 overflow-hidden rounded-md border-4 border-[#4a3320] ${wide ? "h-16 w-40" : "h-16 w-24"}`}
-      style={{ background: "linear-gradient(180deg, #2d3f5c 0%, #6d87ab 55%, #cfe0ef 100%)" }}
-    >
-      <div
-        className="absolute inset-0 opacity-90"
-        style={{
-          clipPath:
-            "polygon(0% 100%, 0% 62%, 8% 62%, 8% 45%, 16% 45%, 16% 70%, 26% 70%, 26% 30%, 34% 30%, 34% 58%, 44% 58%, 44% 40%, 54% 40%, 54% 66%, 64% 66%, 64% 20%, 74% 20%, 74% 62%, 84% 62%, 84% 48%, 100% 48%, 100% 100%)",
-          background: "#1c2740",
-        }}
-      />
-      <div className="absolute inset-x-0 top-0 h-full bg-[repeating-linear-gradient(0deg,rgba(20,14,8,0.35)_0px,rgba(20,14,8,0.35)_3px,transparent_3px,transparent_16px)]" />
-      <div className="animate-sheen absolute inset-y-0 -left-1/3 w-1/3 bg-white/15" />
-    </div>
+    <OfficeAsset
+      src={OFFICE_TILES[tile]}
+      width={size}
+      height={size}
+      className={`shrink-0 ${className}`}
+    />
   );
 }
 
-function Bookshelf() {
-  const colors = ["#c94f4f", "#4f8cc9", "#e0b03b", "#4fbf7a", "#9a5fc9"];
+/** A real conference table + label — the "meeting room" corner. */
+function MeetingRoom({ tile = "conferenceTableLong" }: { tile?: "conferenceTableLong" | "meetingTableRound" }) {
   return (
-    <div className="grid shrink-0 grid-cols-4 grid-rows-2 gap-1 rounded-sm border-2 border-[#5a4632] bg-[#3a2c1e] p-1.5">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-4 w-2.5 rounded-[1px]"
-          style={{ background: colors[i % colors.length], opacity: 0.88 }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Plant() {
-  return (
-    <div className="animate-float flex shrink-0 flex-col items-center">
-      <div className="h-4 w-4 rounded-full bg-[#3a9159]" />
-      <div className="-mt-1.5 h-3 w-3 rounded-full bg-[#2f7a4a]" />
-      <div className="h-2 w-3 rounded-b-sm bg-[#7a5a3a]" />
-    </div>
-  );
-}
-
-function TrophyShelf() {
-  return (
-    <div className="flex shrink-0 items-end gap-1 rounded-sm border border-[#eab30833] bg-black/20 px-2 py-1">
-      <Trophy className="h-4 w-4 text-[#eab308]" />
-      <span className="font-pixel text-[7px] uppercase tracking-wide text-[#eab308]/70">
-        MVP
+    <div className="flex shrink-0 flex-col items-center gap-1">
+      <Asset tile={tile} size={72} />
+      <span className="font-pixel text-[7px] uppercase tracking-wide text-[#e5d9c3]/70">
+        Conference
       </span>
     </div>
   );
 }
 
-function WaterCooler() {
+/** A reception-style counter + label — used for the coffee/lounge corner too. */
+function LoungeCounter({ label }: { label: string }) {
   return (
-    <div className="flex shrink-0 flex-col items-center">
-      <div className="h-3 w-3 rounded-full bg-[#8fd0ee] opacity-90" />
-      <div className="-mt-0.5 h-4 w-4 rounded-sm bg-[#dfeff7]" />
-      <div className="h-2 w-5 rounded-sm bg-[#c9dbe6]" />
+    <div className="flex shrink-0 flex-col items-center gap-1">
+      <Asset tile="receptionDesk" size={64} />
+      <span className="flex items-center gap-1 font-pixel text-[7px] uppercase tracking-wide text-[#e5d9c3]/70">
+        <Coffee className="h-2.5 w-2.5" /> {label}
+      </span>
     </div>
   );
 }
@@ -293,18 +272,16 @@ function SessionBell() {
   );
 }
 
-/** A rotated sticky-note stat tile for the mission corkboard. */
+/** A rotated sticky-note stat tile for the corkboard-style KPI row. */
 function StickyNote({
   label,
   value,
   color,
-  small,
   rotate,
 }: {
   label: string;
   value: string;
   color: string;
-  small?: boolean;
   rotate: number;
 }) {
   return (
@@ -316,10 +293,7 @@ function StickyNote({
         className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full border border-black/30"
         style={{ background: color }}
       />
-      <div
-        className={`truncate font-pixel ${small ? "text-[9px]" : "text-sm"}`}
-        style={{ color: "#3a2c1e" }}
-      >
+      <div className="truncate font-pixel text-sm" style={{ color: "#3a2c1e" }}>
         {value}
       </div>
       <div className="truncate text-[8px] uppercase tracking-wide text-[#5a4632]/80">
@@ -377,82 +351,6 @@ function BuildStatusPill({ ok }: { ok: boolean }) {
   );
 }
 
-function CoffeeCorner() {
-  return (
-    <div className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-sm border border-[#3b82f655] bg-black/30 px-3 py-1.5">
-      <Coffee className="h-3.5 w-3.5 text-[#93c5fd]" />
-      <span className="whitespace-nowrap font-pixel text-[8px] text-[#93c5fd]">BREAK AREA</span>
-    </div>
-  );
-}
-
-/** A framed "team vitals" board — abstract bar meters, explicitly decorative. */
-function KpiWall() {
-  const bars = [
-    { label: "Focus", pct: 82, color: "#eab308" },
-    { label: "Throughput", pct: 66, color: "#22c55e" },
-    { label: "Sync", pct: 91, color: "#3b82f6" },
-    { label: "Morale", pct: 74, color: "#a855f7" },
-  ];
-  return (
-    <div className="flex shrink-0 flex-col gap-1 rounded-md border border-[#eab30833] bg-black/25 p-2">
-      <span className="font-pixel text-[8px] uppercase tracking-wide text-[#fde68a]/80">
-        KPI Wall
-      </span>
-      <div className="flex items-end gap-2">
-        {bars.map((b) => (
-          <div key={b.label} className="flex flex-col items-center gap-0.5">
-            <div className="flex h-11 w-3 items-end overflow-hidden rounded-sm bg-black/40">
-              <div
-                className="w-full rounded-sm"
-                style={{ height: `${b.pct}%`, background: b.color, opacity: 0.8 }}
-              />
-            </div>
-            <span className="text-[7px] text-[#e5d9c3]/70">{b.label}</span>
-          </div>
-        ))}
-      </div>
-      <span className="text-[6px] uppercase tracking-wide text-muted-foreground/50">
-        decorative
-      </span>
-    </div>
-  );
-}
-
-/** A glass-walled meeting room with a table + chairs — pure decor. */
-function GlassMeetingRoom() {
-  return (
-    <div
-      className="relative flex h-[72px] w-36 shrink-0 flex-col overflow-hidden rounded-md border-2 border-[#8fd0ee]/40"
-      style={{ background: "rgba(143,208,238,0.08)" }}
-    >
-      <div className="animate-sheen pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-white/10" />
-      <span className="absolute left-1/3 top-0 h-full w-px bg-[#8fd0ee]/25" />
-      <span className="absolute left-2/3 top-0 h-full w-px bg-[#8fd0ee]/25" />
-      <span className="absolute left-1.5 top-1 font-pixel text-[7px] uppercase tracking-wide text-[#8fd0ee]/80">
-        Conference
-      </span>
-      <div className="mb-2 mt-auto flex items-center justify-center gap-1">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#f0c090]" />
-        <span className="h-2 w-8 rounded-full bg-[#5a4632]" />
-        <span className="h-1.5 w-1.5 rounded-full bg-[#f0c090]" />
-      </div>
-    </div>
-  );
-}
-
-/** A warm coffee/lounge tag for the trading floor. */
-function CoffeeBar() {
-  return (
-    <div className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-sm border border-[#c9a86a55] bg-black/25 px-3 py-1.5">
-      <Coffee className="h-3.5 w-3.5 text-[#c9a86a]" />
-      <span className="whitespace-nowrap font-pixel text-[8px] text-[#c9a86a]">
-        COFFEE BAR
-      </span>
-    </div>
-  );
-}
-
 const FLOOR_LEFT = 340;
 const FLOOR_WIDTH = 1000;
 const LOBBY_TOP = 20;
@@ -482,14 +380,19 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
         background: "linear-gradient(180deg, #1c130c 0%, #2a1c12 35%, #241a11 100%)",
       }}
     >
-      {/* warm wooden floor with a faint isometric diamond tile weave */}
+      {/* real wood-floor tile art, seamlessly repeated — replaces the old CSS
+          diamond-line approximation. Low opacity so it reads as flooring
+          peeking through the gaps between zone cards, not a busy backdrop. */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.09]"
+        className="pointer-events-none absolute inset-0 opacity-[0.5]"
         style={{
-          backgroundImage:
-            "repeating-linear-gradient(60deg, #f2c98f 0px, #f2c98f 1px, transparent 1px, transparent 42px), repeating-linear-gradient(-60deg, #f2c98f 0px, #f2c98f 1px, transparent 1px, transparent 42px)",
+          backgroundImage: `url(${OFFICE_TILES.floorHerringbone})`,
+          backgroundSize: "64px 64px",
+          backgroundRepeat: "repeat",
+          imageRendering: "pixelated",
         }}
       />
+      <div className="pointer-events-none absolute inset-0 bg-black/55" />
 
       {/* 0. LOBBY — signage, reception/conference/lounge hints, world clocks */}
       <LobbyStrip left={FLOOR_LEFT} top={LOBBY_TOP} width={FLOOR_WIDTH} height={LOBBY_HEIGHT} />
@@ -526,12 +429,11 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
               rotate={1.5}
             />
           </div>
-          <TrophyShelf />
-          <Bookshelf />
-          <KpiWall />
-          <GlassMeetingRoom />
-          <CityWindow wide />
-          <Plant />
+          <MeetingRoom tile="meetingTableRound" />
+          <Asset tile="bookshelf" size={72} />
+          <Asset tile="filingCabinet" size={64} />
+          <Asset tile="windowCity" size={80} />
+          <Asset tile="plantLarge" size={64} className="animate-float" />
         </div>
         {executiveExtra.length > 0 ? (
           <div className="mt-3 border-t border-[#eab30822] pt-2">
@@ -557,11 +459,11 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
           <div className="min-w-[260px] flex-1">
             <MarketWall />
           </div>
-          <CityWindow />
-          <Plant />
-          <CityWindow wide />
-          <CoffeeBar />
-          <Plant />
+          <Asset tile="windowCity" size={80} />
+          <Asset tile="plantWindow" size={64} className="animate-float" />
+          <MeetingRoom tile="conferenceTableLong" />
+          <LoungeCounter label="Coffee Bar" />
+          <Asset tile="plantLarge" size={64} className="animate-float" />
         </div>
         <div className="mt-3">
           <TeamGrid agents={tradingAgents} columns={6} emptyLabel="No trading agents installed" />
@@ -582,12 +484,11 @@ export function OfficeScene({ agents }: { agents: AgentsResponse | null }) {
           <IdeMock />
           <TerminalMock />
           <BuildStatusPill ok={devErrorCount === 0} />
-          <CoffeeCorner />
+          <LoungeCounter label="Break Area" />
           <NeonSign />
-          <WaterCooler />
-          <Bookshelf />
-          <Plant />
-          <CityWindow />
+          <Asset tile="serverRackDouble" size={72} />
+          <Asset tile="bookshelf" size={72} />
+          <Asset tile="plantWindow" size={64} className="animate-float" />
         </div>
         <div className="mt-3">
           <TeamGrid agents={developerAgents} columns={6} emptyLabel="No developer agents installed" />

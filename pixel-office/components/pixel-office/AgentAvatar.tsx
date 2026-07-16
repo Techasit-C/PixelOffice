@@ -1,6 +1,8 @@
 import type { AgentInfo } from "@/types/agent";
 import { OperatorAvatar } from "./OperatorAvatar";
 import { TradingDesk } from "./TradingDesk";
+import { OfficeAsset } from "./OfficeAsset";
+import { getAgentSpriteUrl } from "./agent-models";
 import { DEPARTMENT_THEME, type Department } from "./department-theme";
 import { getCatchphrase, getDeskKind, getMonitorCount, getRoleIcon } from "./role-visuals";
 import { teamLabel } from "@/lib/agents/teams";
@@ -11,19 +13,14 @@ function departmentOf(agent: AgentInfo): Department {
   return "executive";
 }
 
-// Mirror of TradingDesk's internal size math so the desk can be centered under
-// the operator without exporting layout constants from that component.
-const MONITOR_W = 30;
-const GAP = 4;
-function deskWidth(monitors: number): number {
-  return monitors * MONITOR_W + (monitors - 1) * GAP;
-}
+const CHAR_SIZE = 108; // rendered size; native sprite art is 64x64
 
 /**
  * A department-tinted cubicle wall behind the whole workstation. Pure CSS,
- * low-contrast so the name/model chips layered above it stay readable — its
- * only job is to visually bind the operator + chair + desk into one "booth"
- * instead of a floating figure stacked on a floating desk.
+ * low-contrast so the name/model chips and the real asset art layered above
+ * it stay readable — its only job is to bind the operator + desk into one
+ * "booth" and carry the team color, since neither the character sprite nor
+ * the desk tile art is department-colored on its own.
  */
 function CubicleBooth({ color, executive }: { color: string; executive?: boolean }) {
   return (
@@ -37,63 +34,24 @@ function CubicleBooth({ color, executive }: { color: string; executive?: boolean
         boxShadow: `inset 0 0 18px ${color}12, inset 0 1px 0 rgba(255,255,255,0.04)`,
       }}
     >
-      {/* executive booths get a gold valance so the CEO desk reads as senior */}
       {executive ? (
         <span
           className="absolute inset-x-0 top-0 h-1"
           style={{ background: `${color}88`, boxShadow: `0 0 6px ${color}` }}
         />
       ) : null}
-      {/* a little wall shelf with a folder + a potted sprout for cozy density */}
-      <div className="absolute right-1.5 top-2 flex items-end gap-1">
-        <span className="h-1.5 w-2 rounded-[1px] bg-[#93c5fd]/50" />
-        <span className="flex flex-col items-center">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#3a9159]" />
-          <span className="h-1 w-1.5 rounded-b-[1px] bg-[#7a5a3a]" />
-        </span>
-      </div>
-      <span
-        className="absolute left-1.5 top-2 h-1.5 w-1.5 rounded-full"
-        style={{ background: `${color}55`, boxShadow: `0 0 4px ${color}66` }}
-      />
-      {/* partition seams so neighbouring booths read as separate cubicles */}
       <span className="absolute inset-y-2 right-0 w-px bg-white/5" />
       <span className="absolute inset-y-2 left-0 w-px bg-white/5" />
     </div>
   );
 }
 
-/** A simple office chair back peeking from behind the seated operator. */
-function OfficeChair({ color, errored }: { color: string; errored?: boolean }) {
-  const tint = errored ? "#ef4444" : color;
-  return (
-    <div className="absolute bottom-[100px] left-1/2 z-[5] -translate-x-1/2">
-      {/* chair back */}
-      <div
-        className="mx-auto h-10 w-11 rounded-t-2xl border border-black/40"
-        style={{
-          background: "linear-gradient(180deg, #2b2b33, #16161c)",
-          boxShadow: `inset 0 0 0 2px ${tint}22`,
-        }}
-      />
-      {/* headrest accent */}
-      <span
-        className="absolute left-1/2 top-1 h-1 w-6 -translate-x-1/2 rounded-full"
-        style={{ background: `${tint}55` }}
-      />
-    </div>
-  );
-}
-
 /**
- * One roster agent as a chibi AI operator SEATED at their own cubicle
- * workstation: a department-tinted booth wall, an office chair, the operator,
- * and a monitor desk drawn IN FRONT of the operator's torso so the figure and
- * the desk read as a single unit (head above the screens, desk in the
- * foreground) rather than a person floating above a separate desk.
- *
- * All motion is CSS (OperatorAvatar/TradingDesk classes) — no per-agent
- * timers. Fixed 128x210 cell so a grid of these can never overlap.
+ * One roster agent, standing at their own workstation. When a clean sprite
+ * exists (agent-models.ts) it's rendered as the real pixel-art character;
+ * otherwise this falls back to the CSS chibi OperatorAvatar so every agent
+ * from /api/agents still renders something. All motion is CSS — no
+ * per-agent timers. Fixed 128x214 cell so a grid of these can never overlap.
  */
 export function AgentAvatar({ agent }: { agent: AgentInfo }) {
   const dept = departmentOf(agent);
@@ -108,7 +66,7 @@ export function AgentAvatar({ agent }: { agent: AgentInfo }) {
   const monitors = getMonitorCount(agent.name);
   const deskKind = getDeskKind(agent.name);
   const catchphrase = getCatchphrase(agent.name);
-  const deskLeft = Math.round((128 - deskWidth(monitors)) / 2);
+  const spriteUrl = getAgentSpriteUrl(agent.name);
 
   const tooltip = [
     agent.name,
@@ -118,7 +76,7 @@ export function AgentAvatar({ agent }: { agent: AgentInfo }) {
   ].join("\n");
 
   return (
-    <div className="relative h-[210px] w-[128px]" title={tooltip}>
+    <div className="relative h-[214px] w-[128px]" title={tooltip}>
       {/* cubicle wall — binds the whole workstation together (behind all else) */}
       <CubicleBooth color={theme.color} executive={isCeo} />
 
@@ -138,28 +96,67 @@ export function AgentAvatar({ agent }: { agent: AgentInfo }) {
         {agent.model}
       </div>
 
-      {/* office chair, behind the operator */}
-      <OfficeChair color={theme.color} errored={isError} />
-
-      {/* chibi operator — seated. Its own speech-bubble slot + bouncing figure.
-          Positioned so the head clears the model badge and stays visible above
-          the desk monitors that overlap the torso below. */}
-      <div className="absolute left-1/2 top-8 z-10 -translate-x-1/2">
-        <OperatorAvatar
-          name={agent.name}
-          accent={theme.color}
-          errored={isError}
-          executive={isCeo}
-          AccessoryIcon={RoleIcon}
-          catchphrase={catchphrase}
+      {/* character — real sprite when available, chibi CSS fallback otherwise.
+          A soft department/status glow sits behind it since the sprite art
+          itself can't be recolored without wrecking the pixel art. */}
+      <div className="absolute left-1/2 top-7 z-10 -translate-x-1/2">
+        <div
+          className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full blur-md"
+          style={{ background: `${statusColor}33` }}
         />
+        {spriteUrl ? (
+          <div className="animate-idle-bounce">
+            <OfficeAsset
+              src={spriteUrl}
+              alt={`${agent.name} sprite`}
+              width={CHAR_SIZE}
+              height={CHAR_SIZE}
+              fallback={
+                <OperatorAvatar
+                  name={agent.name}
+                  accent={theme.color}
+                  errored={isError}
+                  executive={isCeo}
+                  AccessoryIcon={RoleIcon}
+                  catchphrase={catchphrase}
+                />
+              }
+            />
+          </div>
+        ) : (
+          <OperatorAvatar
+            name={agent.name}
+            accent={theme.color}
+            errored={isError}
+            executive={isCeo}
+            AccessoryIcon={RoleIcon}
+            catchphrase={catchphrase}
+          />
+        )}
+        {/* role badge — only for the real-sprite path; OperatorAvatar already
+            renders its own accessory badge, so skip this for the CSS fallback
+            to avoid showing two badges on one character. The sprite art is
+            generic business-casual, so this still carries "which specialty"
+            at a glance. */}
+        {spriteUrl ? (
+          <div
+            className="absolute -right-1 top-0 z-20 flex h-5 w-5 items-center justify-center rounded-full border"
+            style={{
+              borderColor: `${theme.color}99`,
+              background: `${theme.color}26`,
+              boxShadow: `0 0 5px ${theme.color}88`,
+            }}
+          >
+            <RoleIcon className="h-3 w-3" style={{ color: theme.color }} strokeWidth={2.5} />
+          </div>
+        ) : null}
       </div>
 
-      {/* desk + monitors drawn IN FRONT of the operator (higher z), overlapping
-          the torso so the operator reads as seated at this workstation. */}
+      {/* desk + monitor(s), drawn in front of (below/overlapping) the
+          character so the agent reads as standing at this workstation. */}
       <TradingDesk
-        left={deskLeft}
-        top={110}
+        left={16}
+        top={118}
         monitors={monitors}
         accent={theme.color}
         Icon={RoleIcon}

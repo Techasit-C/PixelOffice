@@ -1,14 +1,11 @@
 import type { LucideIcon } from "lucide-react";
 import type { DeskKind } from "./role-visuals";
+import { OfficeAsset } from "./OfficeAsset";
+import { DESK_TILE_BY_MONITOR_COUNT, OFFICE_TILES } from "./office-assets";
 
-const MONITOR_W = 30;
-const GAP = 4;
+const DESK_SIZE = 96; // rendered size; native tile art is 64x64
 
-function deskWidth(monitors: number): number {
-  return monitors * MONITOR_W + (monitors - 1) * GAP;
-}
-
-/** Small, purely decorative motion motif for a desk's secondary screens. */
+/** Small, purely decorative motion motif layered over the desk's screen. */
 function ScreenMotif({ kind, glow }: { kind: DeskKind; glow: string }) {
   switch (kind) {
     case "chart":
@@ -27,7 +24,7 @@ function ScreenMotif({ kind, glow }: { kind: DeskKind; glow: string }) {
     case "radar":
       return (
         <div
-          className="absolute inset-[3px] overflow-hidden rounded-full border"
+          className="absolute inset-[2px] overflow-hidden rounded-full border"
           style={{ borderColor: `${glow}66` }}
         >
           <div
@@ -140,11 +137,30 @@ function ScreenMotif({ kind, glow }: { kind: DeskKind; glow: string }) {
   }
 }
 
+/** Old CSS desk, kept only as a graceful fallback if the real tile art fails to load. */
+function FallbackCssDesk({ glow }: { glow: string }) {
+  return (
+    <div className="relative h-full w-full">
+      <div
+        className="absolute inset-x-2 top-3 h-6 rounded-[2px] border border-black/70 bg-[#050b12]"
+        style={{ boxShadow: `0 0 6px ${glow}66 inset` }}
+      />
+      <div className="absolute inset-x-2 bottom-6 h-2 rounded-sm bg-[#2a1f16]" />
+      <div
+        className="absolute inset-x-2 bottom-0 h-6 rounded-b-sm"
+        style={{ background: "linear-gradient(180deg, #6b4a2f, #4a3320)" }}
+      />
+    </div>
+  );
+}
+
 /**
- * A cozy pixel-HD desk: a warm wooden surface with a keyboard strip, a mug
- * and a notebook, topped by one or more monitors. The first screen shows the
- * agent's role glyph; any additional screens play a small role-appropriate
- * motion motif. Pure presentation — no live data is implied by any shape.
+ * A real isometric desk+monitor(s)+chair tile from the asset pack (see
+ * office-assets.ts), tiered by monitor count. A small CSS overlay — the
+ * agent's role glyph plus a role-appropriate motion motif — sits over the
+ * tile's screen area; that's the only part that's still CSS, since the
+ * asset pack draws one fixed monitor arrangement per tile rather than a
+ * data-aware one. Falls back to a plain CSS desk if the image fails to load.
  */
 export function TradingDesk({
   left,
@@ -166,53 +182,42 @@ export function TradingDesk({
   className?: string;
 }) {
   const glow = errored ? "#ef4444" : accent;
-  const width = deskWidth(monitors);
+  const tier = (monitors >= 3 ? 3 : monitors >= 2 ? 2 : 1) as 1 | 2 | 3;
+  const spec = DESK_TILE_BY_MONITOR_COUNT[tier];
 
   return (
-    <div className={`absolute ${className}`} style={{ left, top }}>
-      <div className="flex" style={{ gap: GAP }}>
-        {Array.from({ length: monitors }).map((_, i) => (
-          <div
-            key={i}
-            className="animate-monitor-flicker relative h-10 overflow-hidden rounded-[2px] border border-black/70 bg-[#050b12]"
-            style={{
-              width: MONITOR_W,
-              boxShadow: `0 0 6px ${glow}66 inset, 0 0 5px ${glow}40`,
-              animationDelay: `${i * 0.7}s`,
-            }}
-          >
-            <div
-              className="absolute inset-x-0 top-0 h-[2px]"
-              style={{ background: glow, opacity: 0.9 }}
-            />
-            {Icon && i === 0 ? (
-              <Icon
-                className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2"
-                style={{ color: glow }}
-                strokeWidth={2.25}
-              />
-            ) : (
-              <ScreenMotif kind={kind} glow={glow} />
-            )}
-          </div>
-        ))}
-      </div>
-      {/* keyboard strip */}
-      <div
-        className="mt-1 h-2 rounded-sm bg-[#2a1f16]"
-        style={{ width, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.3)" }}
+    <div
+      className={`absolute ${className}`}
+      style={{ left, top, width: DESK_SIZE, height: DESK_SIZE }}
+    >
+      <OfficeAsset
+        src={OFFICE_TILES[spec.tile]}
+        alt="Desk workstation"
+        width={DESK_SIZE}
+        height={DESK_SIZE}
+        fallback={<FallbackCssDesk glow={glow} />}
       />
-      {/* wooden desk surface, with a mug + notebook for cozy flavor */}
+      {/* screen glow + role motif, positioned over the tile's monitor area */}
       <div
-        className="relative h-7 rounded-b-sm"
+        className="animate-monitor-flicker absolute overflow-hidden rounded-[1px]"
         style={{
-          width,
-          background: "linear-gradient(180deg, #6b4a2f, #4a3320)",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+          left: `${spec.screen.left}%`,
+          top: `${spec.screen.top}%`,
+          width: `${spec.screen.width}%`,
+          height: `${spec.screen.height}%`,
+          background: `${glow}26`,
+          boxShadow: `0 0 4px ${glow}aa`,
         }}
       >
-        <span className="absolute bottom-1 left-0.5 h-1.5 w-1.5 rounded-full border border-black/30 bg-[#e5e7eb]/80" />
-        <span className="absolute bottom-1 right-0.5 h-1.5 w-2 rounded-[1px] bg-[#93c5fd]/70" />
+        {Icon ? (
+          <Icon
+            className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2"
+            style={{ color: glow }}
+            strokeWidth={2.5}
+          />
+        ) : (
+          <ScreenMotif kind={kind} glow={glow} />
+        )}
       </div>
     </div>
   );
