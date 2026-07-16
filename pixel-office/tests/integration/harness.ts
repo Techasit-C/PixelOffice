@@ -73,6 +73,39 @@ function sameIdentity(a: NormalizedIdentity, b: NormalizedIdentity): boolean {
   return a.host === b.host && a.port === b.port && a.database === b.database;
 }
 
+// Prisma's default pool size is num_cpus*2+1 connections PER CLIENT INSTANCE. This
+// harness's admin clients each run one or two quick queries then disconnect — a pool of
+// 1 is sufficient and drastically cuts the total connection count a full test run opens
+// against the disposable database, which was observed to trigger intermittent
+// "can't reach database server" failures under the default pool size.
+function withMinimalConnectionPool(rawUrl: string): string {
+  const u = new URL(rawUrl);
+  u.searchParams.set("connection_limit", "1");
+  return u.toString();
+}
+
+/**
+ * Retries only genuine Prisma connection-initialization failures (the observed
+ * "can't reach database server" class of transient error against the disposable test
+ * database) with a short bounded backoff. Never retries a HarnessSafetyError or any
+ * other error — those are legitimate rejections, not transient connectivity.
+ */
+async function withConnectionRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isTransientConnectionError =
+        err instanceof Error &&
+        !(err instanceof HarnessSafetyError) &&
+        (err.name === "PrismaClientInitializationError" || /can.?t reach database server/i.test(err.message));
+      if (!isTransientConnectionError || attempt === attempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+    }
+  }
+  throw new HarnessSafetyError("unreachable");
+}
+
 /**
  * Strips any postgres(ql):// connection string out of arbitrary text (e.g. a child
  * process's stderr) before it is ever included in a thrown error or logged — some
@@ -129,6 +162,16 @@ function generateSchemaName(): string {
   return "test_" + randomUUID().replace(/-/g, "");
 }
 
+// Prisma's `schema` URL param scopes PRISMA'S OWN generated SQL (migrate, ORM model
+// queries) to the isolated schema — proven end-to-end by harness-migrate.test.ts. It
+// does NOT set the Postgres session search_path GUC, so any RAW query
+// ($queryRawUnsafe/$executeRawUnsafe) with an unqualified identifier still resolves
+// against "public". Setting search_path via libpq's `options` connection parameter was
+// tried and reverted: Neon's pooled endpoint (PgBouncer, transaction-pooling mode) does
+// not reliably honor startup options, and it produced a real connection failure in
+// testing. The correct, robust pattern — used throughout this harness and required of
+// every future Checkpoint 3+ raw-SQL integration test — is to explicitly schema-qualify
+// any raw identifier with the schemaName returned here, e.g. `"${schemaName}".paper_accounts`.
 function appendSchemaParam(rawUrl: string, schemaName: string): string {
   const u = new URL(rawUrl);
   u.searchParams.set("schema", schemaName);
@@ -165,22 +208,24 @@ export async function createIsolatedSchema(): Promise<IsolatedSchema> {
   requireDistinctFromAppDatabase(testDirectUrl, "TEST_DIRECT_DATABASE_URL");
 
   const schemaName = generateSchemaName();
-  const adminClient = new PrismaClient({ datasources: { db: { url: testUrl } } });
+  const adminClient = new PrismaClient({ datasources: { db: { url: withMinimalConnectionPool(testUrl) } } });
   try {
-    await assertSchemaNotAlreadyPresent(adminClient, schemaName);
+    await withConnectionRetry(async () => {
+      await assertSchemaNotAlreadyPresent(adminClient, schemaName);
 
-    // schemaName is derived solely from randomUUID() ("test_" + [0-9a-f]{32}), so it can
-    // never contain a quote or injection character — double-quoting here is
-    // defense-in-depth, not the sole protection.
-    await adminClient.$executeRawUnsafe(`CREATE SCHEMA "${schemaName}"`);
+      // schemaName is derived solely from randomUUID() ("test_" + [0-9a-f]{32}), so it
+      // can never contain a quote or injection character — double-quoting here is
+      // defense-in-depth, not the sole protection.
+      await adminClient.$executeRawUnsafe(`CREATE SCHEMA "${schemaName}"`);
 
-    const after = await adminClient.$queryRawUnsafe<{ schema_name: string }[]>(
-      `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1`,
-      schemaName,
-    );
-    if (after.length !== 1) {
-      throw new HarnessSafetyError("Schema creation could not be verified via information_schema.schemata.");
-    }
+      const after = await adminClient.$queryRawUnsafe<{ schema_name: string }[]>(
+        `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1`,
+        schemaName,
+      );
+      if (after.length !== 1) {
+        throw new HarnessSafetyError("Schema creation could not be verified via information_schema.schemata.");
+      }
+    });
   } finally {
     await adminClient.$disconnect();
   }
@@ -204,9 +249,9 @@ export async function dropIsolatedSchema(schemaName: string): Promise<void> {
   if (!testUrl) {
     throw new HarnessSafetyError("TEST_DATABASE_URL is not set. Cannot drop the isolated schema.");
   }
-  const adminClient = new PrismaClient({ datasources: { db: { url: testUrl } } });
+  const adminClient = new PrismaClient({ datasources: { db: { url: withMinimalConnectionPool(testUrl) } } });
   try {
-    await adminClient.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+    await withConnectionRetry(() => adminClient.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`));
   } finally {
     await adminClient.$disconnect();
   }
@@ -241,4 +286,13 @@ export async function applyMigrations(isolated: IsolatedSchema): Promise<void> {
     const rawMessage = err instanceof Error ? err.message : String(err);
     throw new HarnessSafetyError(`prisma migrate deploy failed: ${redactConnectionStrings(rawMessage)}`);
   }
+}
+
+/**
+ * A fresh, per-call PrismaClient pointed at the given (already schema-scoped)
+ * connection string — never the app's lib/db.ts singleton, which is wired to
+ * DATABASE_URL and is never imported anywhere in this file.
+ */
+export function createTestPrismaClient(schemaUrl: string): PrismaClient {
+  return new PrismaClient({ datasources: { db: { url: schemaUrl } } });
 }

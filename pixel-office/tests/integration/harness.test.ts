@@ -129,24 +129,37 @@ describe("createIsolatedSchema / dropIsolatedSchema — happy path (real Postgre
 
 describe("createIsolatedSchema — concurrency", () => {
   it("two concurrent calls produce two distinct schema names, both independently torn down", async () => {
-    const [a, b] = await Promise.all([createIsolatedSchema(), createIsolatedSchema()]);
+    // allSettled, not all — if one createIsolatedSchema() call fails (e.g. a transient
+    // connectivity blip) while the other has already succeeded and created a real
+    // schema, Promise.all would reject the whole destructuring and skip straight past
+    // any try/finally, leaking the successful half. allSettled lets this test capture
+    // and clean up whichever calls actually succeeded, regardless of the other's outcome.
+    const results = await Promise.allSettled([createIsolatedSchema(), createIsolatedSchema()]);
+    const created = results
+      .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof createIsolatedSchema>>> => r.status === "fulfilled")
+      .map((r) => r.value);
     try {
-      expect(a.schemaName).not.toBe(b.schemaName);
+      for (const result of results) {
+        if (result.status === "rejected") throw result.reason;
+      }
+      const [a, b] = created;
+      expect(a!.schemaName).not.toBe(b!.schemaName);
 
       const verifyClient = new PrismaClient({ datasources: { db: { url: process.env.TEST_DATABASE_URL! } } });
       try {
         const rows = await verifyClient.$queryRawUnsafe<{ schema_name: string }[]>(
           `SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ($1, $2)`,
-          a.schemaName,
-          b.schemaName,
+          a!.schemaName,
+          b!.schemaName,
         );
         expect(rows).toHaveLength(2);
       } finally {
         await verifyClient.$disconnect();
       }
     } finally {
-      await dropIsolatedSchema(a.schemaName);
-      await dropIsolatedSchema(b.schemaName);
+      for (const isolated of created) {
+        await dropIsolatedSchema(isolated.schemaName);
+      }
     }
   }, 20000);
 });
