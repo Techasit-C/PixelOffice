@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { defineConfig, configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // Pure-logic unit tests only (no DB, no network), Node environment by default; a
@@ -18,6 +18,12 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // tests/integration/** requires a real, isolated Postgres (TEST_DATABASE_URL) and is
+    // a separate, mandatory-but-opt-in gate (npm run test:integration), never part of the
+    // default suite — unlike tests/live/**, which stays included but self-skips at
+    // runtime via describe.skipIf(), integration tests are excluded at the config level
+    // so a missing TEST_DATABASE_URL can never silently no-op a real-DB assertion.
+    exclude: [...configDefaults.exclude, "tests/integration/**"],
   },
   resolve: {
     alias: {
