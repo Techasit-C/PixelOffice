@@ -15,6 +15,14 @@ only the ones actually composed into the office scene):
 `tile-00, 03, 08, 16, 17, 24, 32, 34, 36, 40, 42, 44, 48, 51, 52, 56, 57, 58,
 59, 60, 61, 62, 63`
 
+All 23 files here have been cleaned of a stray magenta/pink artifact baked
+into the upstream PNGs — confirmed by direct pixel sampling (fully opaque,
+saturated magenta pixels forming a thin guide-line, unrelated to the actual
+tile art; e.g. a leftover grid line near the top edge of floor tiles, and a
+corrupted contact-shadow line under several furniture tiles). The cleanup
+sets only those specific pixels to transparent; the original files in
+`pixel-office-assets-v1` were never modified.
+
 ## License
 
 **License needs confirmation.** The source pack (`pixel-office-assets-v1`)

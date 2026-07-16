@@ -28,7 +28,8 @@ export function coziBackground(color: string): string {
   return `linear-gradient(180deg, ${color}22, rgba(42,31,22,0.94) 46%)`;
 }
 
-/** The ambient outer glow + inner wash every zone card shares. */
+/** The ambient outer glow + inner wash every zone card shares — kept subtle
+ * on purpose so the glow reads as ambient lighting, not a neon frame. */
 export function glowShadow(color: string): string {
-  return `0 4px 18px rgba(0,0,0,0.45), 0 0 20px ${color}22, inset 0 0 32px ${color}0f`;
+  return `0 4px 14px rgba(0,0,0,0.4), 0 0 10px ${color}14, inset 0 0 24px ${color}08`;
 }

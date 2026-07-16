@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { OfficeScene } from "@/components/pixel-office/OfficeScene";
 import { ControlBar } from "@/components/pixel-office/ControlBar";
 import { WidgetWindow } from "@/components/widgets/WidgetWindow";
@@ -65,8 +65,67 @@ function gateReasonFor(status: number): WidgetGateReason | null {
   return null;
 }
 
+// Below this viewport width the fixed 1700px-wide draggable-window canvas
+// (built for desktop "floating panel" composition) no longer fits — it would
+// force horizontal scrolling on a phone/small-tablet screen. At and above it,
+// desktop behavior is unchanged pixel-for-pixel.
+const DESKTOP_CANVAS_BREAKPOINT = 1024;
+
+function useIsNarrowViewport(breakpoint: number): boolean {
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    setIsNarrow(mql.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsNarrow(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, [breakpoint]);
+  return isNarrow;
+}
+
+/** Static (non-draggable) stand-in for WidgetWindow, used only on narrow
+ * viewports where the absolute-positioned floating-window canvas doesn't
+ * apply — same visual family (accent border/header), normal document flow. */
+function StaticWidgetCard({
+  title,
+  accent,
+  children,
+}: {
+  title: string;
+  accent: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="overflow-hidden rounded-md border"
+      style={{
+        borderColor: `color-mix(in oklab, ${accent} 45%, transparent)`,
+        background:
+          "linear-gradient(180deg, rgba(15,18,32,0.97), rgba(10,12,22,0.97))",
+      }}
+    >
+      <div
+        className="border-b px-3 py-2"
+        style={{
+          borderColor: `color-mix(in oklab, ${accent} 35%, transparent)`,
+          background: `color-mix(in oklab, ${accent} 12%, transparent)`,
+        }}
+      >
+        <div
+          className="truncate font-pixel text-[10px] leading-none tracking-wide"
+          style={{ color: accent }}
+        >
+          {title}
+        </div>
+      </div>
+      <div className="p-3">{children}</div>
+    </div>
+  );
+}
+
 export default function PixelOfficePageClient() {
   const wm = useWindowManager(DEFAULT_LAYOUT);
+  const isNarrow = useIsNarrowViewport(DESKTOP_CANVAS_BREAKPOINT);
 
   const [affiliate, setAffiliate] = useState(makeAffiliateData());
   const [companyStatus, setCompanyStatus] = useState(makeCompanyStatusData());
@@ -287,10 +346,38 @@ export default function PixelOfficePageClient() {
     }
   }
 
+  if (isNarrow) {
+    return (
+      <div className="relative h-full w-full overflow-y-auto overflow-x-hidden bg-black">
+        <div className="flex w-full flex-col gap-3 p-2">
+          <OfficeScene agents={agents} />
+          <div className="grid grid-cols-1 gap-3 p-1 sm:grid-cols-2">
+            {Object.keys(DEFAULT_LAYOUT).map((id) => {
+              const meta = WIDGET_META[id];
+              if (!meta) return null;
+              return (
+                <StaticWidgetCard key={id} title={meta.title} accent={meta.accent}>
+                  {renderContent(id)}
+                </StaticWidgetCard>
+              );
+            })}
+          </div>
+        </div>
+        <ControlBar
+          onResetLayout={wm.resetLayout}
+          closedWidgets={closedWidgets}
+          onReopen={wm.openWindow}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-full w-full overflow-auto bg-black">
       <div className="relative" style={{ width: 1700, height: 1640 }}>
-        <OfficeScene agents={agents} />
+        <div className="absolute left-[340px] top-[20px] w-[1000px]">
+          <OfficeScene agents={agents} />
+        </div>
 
         {Object.keys(DEFAULT_LAYOUT).map((id) => {
           const meta = WIDGET_META[id];

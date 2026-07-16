@@ -3,8 +3,6 @@ import type { DeskKind } from "./role-visuals";
 import { OfficeAsset } from "./OfficeAsset";
 import { DESK_TILE_BY_MONITOR_COUNT, OFFICE_TILES } from "./office-assets";
 
-const DESK_SIZE = 96; // rendered size; native tile art is 64x64
-
 /** Small, purely decorative motion motif layered over the desk's screen. */
 function ScreenMotif({ kind, glow }: { kind: DeskKind; glow: string }) {
   switch (kind) {
@@ -137,30 +135,13 @@ function ScreenMotif({ kind, glow }: { kind: DeskKind; glow: string }) {
   }
 }
 
-/** Old CSS desk, kept only as a graceful fallback if the real tile art fails to load. */
-function FallbackCssDesk({ glow }: { glow: string }) {
-  return (
-    <div className="relative h-full w-full">
-      <div
-        className="absolute inset-x-2 top-3 h-6 rounded-[2px] border border-black/70 bg-[#050b12]"
-        style={{ boxShadow: `0 0 6px ${glow}66 inset` }}
-      />
-      <div className="absolute inset-x-2 bottom-6 h-2 rounded-sm bg-[#2a1f16]" />
-      <div
-        className="absolute inset-x-2 bottom-0 h-6 rounded-b-sm"
-        style={{ background: "linear-gradient(180deg, #6b4a2f, #4a3320)" }}
-      />
-    </div>
-  );
-}
-
 /**
  * A real isometric desk+monitor(s)+chair tile from the asset pack (see
  * office-assets.ts), tiered by monitor count. A small CSS overlay — the
  * agent's role glyph plus a role-appropriate motion motif — sits over the
  * tile's screen area; that's the only part that's still CSS, since the
  * asset pack draws one fixed monitor arrangement per tile rather than a
- * data-aware one. Falls back to a plain CSS desk if the image fails to load.
+ * data-aware one. No CSS fallback desk — every desk is real asset art.
  */
 export function TradingDesk({
   left,
@@ -170,6 +151,7 @@ export function TradingDesk({
   Icon,
   errored = false,
   kind = "chart",
+  size = 100,
   className = "",
 }: {
   left: number;
@@ -179,6 +161,7 @@ export function TradingDesk({
   Icon?: LucideIcon;
   errored?: boolean;
   kind?: DeskKind;
+  size?: number;
   className?: string;
 }) {
   const glow = errored ? "#ef4444" : accent;
@@ -186,17 +169,8 @@ export function TradingDesk({
   const spec = DESK_TILE_BY_MONITOR_COUNT[tier];
 
   return (
-    <div
-      className={`absolute ${className}`}
-      style={{ left, top, width: DESK_SIZE, height: DESK_SIZE }}
-    >
-      <OfficeAsset
-        src={OFFICE_TILES[spec.tile]}
-        alt="Desk workstation"
-        width={DESK_SIZE}
-        height={DESK_SIZE}
-        fallback={<FallbackCssDesk glow={glow} />}
-      />
+    <div className={`absolute ${className}`} style={{ left, top, width: size, height: size }}>
+      <OfficeAsset src={OFFICE_TILES[spec.tile]} alt="Desk workstation" width={size} height={size} />
       {/* screen glow + role motif, positioned over the tile's monitor area */}
       <div
         className="animate-monitor-flicker absolute overflow-hidden rounded-[1px]"
